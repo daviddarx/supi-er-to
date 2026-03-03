@@ -1,0 +1,5 @@
+  - CORS headers — function is same-origin only; not a current risk
+  - CSP header — defensive hardening, no active vulnerability; future work
+  - Rate limiting — single whitelisted admin user; future work
+  - next-auth v5 migration — future work
+  - Keyboard nav in Explorative/Experimental modes — not in spec; future enhancement
