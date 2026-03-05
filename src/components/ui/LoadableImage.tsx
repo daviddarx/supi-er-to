@@ -12,6 +12,8 @@ interface LoadableImageProps {
   aspectRatio?: number
   className?: string
   onClick?: () => void
+  /** Override the computed image src (e.g. a local blob URL for optimistic display). */
+  overrideSrc?: string
 }
 
 /**
@@ -26,6 +28,7 @@ export function LoadableImage({
   aspectRatio,
   className,
   onClick,
+  overrideSrc,
 }: LoadableImageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isVisible, setIsVisible] = useState(false)
@@ -63,7 +66,7 @@ export function LoadableImage({
 
       {isVisible && !hasError && (
         <img
-          src={getImageSrc(id, size)}
+          src={overrideSrc ?? getImageSrc(id, size)}
           alt={alt}
           onLoad={() => setIsLoaded(true)}
           onError={() => setHasError(true)}

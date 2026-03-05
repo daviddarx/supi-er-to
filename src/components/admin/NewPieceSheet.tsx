@@ -112,9 +112,13 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
 
       const { image } = await response.json()
 
+      // Capture the blob URL before resetForm clears it, so we can pass it
+      // to onSuccess for optimistic display in the gallery before rebuild.
+      const capturedPreviewSrc = previewUrl ?? undefined
+
       // Reset form state before calling onSuccess so the sheet closes cleanly
       resetForm()
-      onSuccess(image)
+      onSuccess({ ...image, previewSrc: capturedPreviewSrc })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed")
     } finally {
@@ -124,7 +128,9 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
 
   const resetForm = () => {
     setFile(null)
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    // Note: we do NOT revoke previewUrl here — it may be passed to onSuccess
+    // for optimistic display in the gallery. The browser releases the blob
+    // automatically when the page unloads or when a new file is selected.
     setPreviewUrl(null)
     setDate(getTodayISO())
     setTag("supi")

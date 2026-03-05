@@ -118,9 +118,11 @@ export default function GalleryPage() {
 
   /**
    * Called by the admin panel after a successful upload.
-   * Adds the new image to the front of the list without a page reload.
+   * Closes the sheet and adds the new image (with its local blob URL for
+   * optimistic display) to the front of the list without a page reload.
    */
   const handleImageAdded = useCallback((newImage: GalleryImage) => {
+    setNewPieceSheetOpen(false)
     setImages((prev) => sortImages([newImage, ...prev]))
   }, [])
 

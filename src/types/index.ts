@@ -10,6 +10,8 @@ export interface GalleryImage {
   date: string
   sortOrder: number
   tag: Tag
+  /** Temporary blob URL for optimistic display before the Netlify rebuild completes. Never persisted. */
+  previewSrc?: string
 }
 
 export const IMAGE_FILTER_LABELS: Record<ImageFilter, string> = {

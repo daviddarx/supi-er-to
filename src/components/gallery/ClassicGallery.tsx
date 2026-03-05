@@ -23,6 +23,7 @@ export default function ClassicGallery({ images, onImageClick }: ClassicGalleryP
           alt={`${image.tag} piece`}
           onClick={() => onImageClick(index)}
           className="w-full"
+          overrideSrc={image.previewSrc}
         />
       ))}
     </main>

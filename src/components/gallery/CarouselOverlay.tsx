@@ -40,7 +40,7 @@ export function CarouselOverlay({
   const slides = useMemo(
     () =>
       images.map((img) => ({
-        src: getImageSrc(img.id, 2400),
+        src: img.previewSrc ?? getImageSrc(img.id, 2400),
         width: 2400,
         height: 1600, // 3:2 aspect ratio placeholder; actual dimensions are derived by YARL
       })),

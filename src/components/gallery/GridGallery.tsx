@@ -51,6 +51,7 @@ export default function GridGallery({ images, onImageClick }: GridGalleryProps) 
             alt={`${image.tag} piece`}
             onClick={() => onImageClick(index)}
             className="mb-5 w-full"
+            overrideSrc={image.previewSrc}
           />
         ))}
       </Masonry>

@@ -141,7 +141,13 @@ const ExplorativeImage = memo(function ExplorativeImage({
         transformOrigin: "center center",
       }}
     >
-      <LoadableImage id={image.id} size={500} alt={`${image.tag} piece`} className="w-full" />
+      <LoadableImage
+        id={image.id}
+        size={500}
+        alt={`${image.tag} piece`}
+        className="w-full"
+        overrideSrc={image.previewSrc}
+      />
 
       {/* Fullscreen trigger — fades in on hover (desktop); always visible on touch */}
       <button
