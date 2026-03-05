@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build"
+  command = "npm ci && npm run build"
   publish = ".next"
 
 [build.environment]
@@ -15,4 +15,7 @@
   directory = "netlify/functions"
   node_bundler = "nft"
   included_files = ["node_modules/sharp/**"]
+
+[functions."upload-image"]
+  timeout = 26
 
