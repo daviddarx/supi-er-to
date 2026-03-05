@@ -16,7 +16,3 @@
   node_bundler = "nft"
   included_files = ["node_modules/sharp/**"]
 
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/___netlify-handler"
-  status = 200
