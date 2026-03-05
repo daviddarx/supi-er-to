@@ -4,6 +4,9 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # NEXTAUTH_URL is the public site URL — not a secret.
+  # next-auth intentionally includes it in the client bundle for redirects.
+  SECRETS_SCAN_OMIT_KEYS = "NEXTAUTH_URL"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
