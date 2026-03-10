@@ -49,10 +49,69 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 
 /**
  * Netlify synchronous functions cap the request body at 6 MB.
- * Base64 encoding adds ~33 % overhead, so the raw file must stay under ~4 MB
- * to keep the encoded body comfortably below that limit.
+ * Base64 encoding adds ~33 % overhead, so the payload must stay under ~4 MB.
+ * We enforce a hard cap on the *original* file size to avoid loading multi-GB
+ * files into browser memory; anything between 4 MB and this cap is
+ * automatically compressed client-side via Canvas before upload.
  */
-const MAX_FILE_BYTES = 4 * 1024 * 1024 // 4 MB
+const MAX_ORIGINAL_BYTES = 30 * 1024 * 1024 // 30 MB hard cap on picker
+const TARGET_UPLOAD_BYTES = 3.75 * 1024 * 1024 // target after compression (leaves headroom under 6 MB limit)
+
+/**
+ * Prepares an image file for upload:
+ * - Returns the raw ArrayBuffer + mimeType unchanged if the file is already small enough.
+ * - Otherwise redraws onto an offscreen Canvas, scaling down and re-encoding as JPEG
+ *   at progressively lower quality until the result fits within TARGET_UPLOAD_BYTES.
+ *
+ * The Netlify function runs Sharp on whatever bytes arrive, so client-side
+ * pre-compression doesn't affect the quality of the final WebP outputs.
+ */
+async function prepareForUpload(file: File): Promise<{ buffer: ArrayBuffer; mimeType: string }> {
+  if (file.size <= TARGET_UPLOAD_BYTES) {
+    return { buffer: await file.arrayBuffer(), mimeType: file.type }
+  }
+
+  const img = new Image()
+  const blobUrl = URL.createObjectURL(file)
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error("Failed to decode image"))
+      img.src = blobUrl
+    })
+  } finally {
+    URL.revokeObjectURL(blobUrl)
+  }
+
+  const canvas = document.createElement("canvas")
+  // Start at the native size; scale down progressively if needed.
+  let w = img.naturalWidth
+  let h = img.naturalHeight
+
+  for (let pass = 0; pass < 4; pass++) {
+    // Each failed pass scales dimensions by 0.75× in addition to lowering quality.
+    if (pass > 0) {
+      w = Math.round(w * 0.75)
+      h = Math.round(h * 0.75)
+    }
+    canvas.width = w
+    canvas.height = h
+    canvas.getContext("2d")!.drawImage(img, 0, 0, w, h)
+
+    for (let quality = 0.88; quality >= 0.5; quality -= 0.08) {
+      const blob = await new Promise<Blob | null>((res) =>
+        canvas.toBlob(res, "image/jpeg", quality)
+      )
+      if (blob && blob.size <= TARGET_UPLOAD_BYTES) {
+        return { buffer: await blob.arrayBuffer(), mimeType: "image/jpeg" }
+      }
+    }
+  }
+
+  throw new Error(
+    "Image could not be compressed to fit the upload limit. Please resize it manually."
+  )
+}
 
 /**
  * Slide-in sheet form for adding a new graffiti piece to the collection.
@@ -71,18 +130,16 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
   const [date, setDate] = useState<string>(getTodayISO)
   const [tag, setTag] = useState<Tag>("supi")
   const [sortOrder, setSortOrder] = useState<number>(0)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitPhase, setSubmitPhase] = useState<"idle" | "compressing" | "uploading">("idle")
   const [error, setError] = useState<string | null>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0]
     if (!selected) return
 
-    if (selected.size > MAX_FILE_BYTES) {
-      const mb = (selected.size / (1024 * 1024)).toFixed(1)
-      setError(
-        `File is too large (${mb} MB). Maximum is 4 MB. Please resize or compress the image first.`
-      )
+    if (selected.size > MAX_ORIGINAL_BYTES) {
+      const mb = (selected.size / (1024 * 1024)).toFixed(0)
+      setError(`File is too large (${mb} MB). Maximum source file size is 30 MB.`)
       e.target.value = ""
       return
     }
@@ -99,12 +156,17 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
   const handleSubmit = async () => {
     if (!file || !session) return
 
-    setIsSubmitting(true)
     setError(null)
 
     try {
-      const arrayBuffer = await file.arrayBuffer()
-      const base64 = arrayBufferToBase64(arrayBuffer)
+      // Compress client-side if the file exceeds the Netlify body size limit.
+      const needsCompression = file.size > TARGET_UPLOAD_BYTES
+      setSubmitPhase(needsCompression ? "compressing" : "uploading")
+
+      const { buffer, mimeType } = await prepareForUpload(file)
+      const base64 = arrayBufferToBase64(buffer)
+
+      setSubmitPhase("uploading")
 
       const response = await fetch("/.netlify/functions/upload-image", {
         method: "POST",
@@ -116,7 +178,7 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
         },
         body: JSON.stringify({
           file: base64,
-          mimeType: file.type,
+          mimeType,
           date,
           tag,
           sortOrder,
@@ -147,7 +209,7 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed")
     } finally {
-      setIsSubmitting(false)
+      setSubmitPhase("idle")
     }
   }
 
@@ -239,8 +301,16 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
           {error && <p className="text-destructive text-xs break-words">{error}</p>}
 
           {/* Submit */}
-          <Button onClick={handleSubmit} disabled={!file || isSubmitting} className="text-xs">
-            {isSubmitting ? "Adding to collection…" : "Add to collection"}
+          <Button
+            onClick={handleSubmit}
+            disabled={!file || submitPhase !== "idle"}
+            className="text-xs"
+          >
+            {submitPhase === "compressing"
+              ? "Compressing…"
+              : submitPhase === "uploading"
+                ? "Adding to collection…"
+                : "Add to collection"}
           </Button>
         </div>
       </SheetContent>
