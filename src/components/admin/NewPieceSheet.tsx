@@ -48,6 +48,13 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 /**
+ * Netlify synchronous functions cap the request body at 6 MB.
+ * Base64 encoding adds ~33 % overhead, so the raw file must stay under ~4 MB
+ * to keep the encoded body comfortably below that limit.
+ */
+const MAX_FILE_BYTES = 4 * 1024 * 1024 // 4 MB
+
+/**
  * Slide-in sheet form for adding a new graffiti piece to the collection.
  *
  * On submit it:
@@ -70,6 +77,17 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0]
     if (!selected) return
+
+    if (selected.size > MAX_FILE_BYTES) {
+      const mb = (selected.size / (1024 * 1024)).toFixed(1)
+      setError(
+        `File is too large (${mb} MB). Maximum is 4 MB. Please resize or compress the image first.`
+      )
+      e.target.value = ""
+      return
+    }
+
+    setError(null)
 
     // Revoke previous object URL to avoid memory leaks
     if (previewUrl) URL.revokeObjectURL(previewUrl)
@@ -106,8 +124,15 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
       })
 
       if (!response.ok) {
-        const err = await response.json()
-        throw new Error(err.message || "Upload failed")
+        let message = `Upload failed (HTTP ${response.status})`
+        try {
+          const json = await response.json()
+          message = json.message || message
+        } catch {
+          const text = (await response.text()).trim()
+          if (text) message = text
+        }
+        throw new Error(message)
       }
 
       const { image } = await response.json()
@@ -211,7 +236,7 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
           </div>
 
           {/* Error */}
-          {error && <p className="text-destructive text-xs">{error}</p>}
+          {error && <p className="text-destructive text-xs break-words">{error}</p>}
 
           {/* Submit */}
           <Button onClick={handleSubmit} disabled={!file || isSubmitting} className="text-xs">
