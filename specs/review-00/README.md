@@ -7,7 +7,7 @@ The 34-item review spec is in `prompt.md`. The plan is split into three phases.
 
 | File | Covers | Review items |
 |---|---|---|
-| `phase-1-design-system-icons-buttons.md` | Design tokens, typography, favicon, SVG icons, ButtonGroup component | 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 |
+| `phase-1-design-system-icons-buttons.md` | Design tokens, typography, favicon, SVG icons, ButtonGroup component, PWA manifest | 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 35 |
 | `phase-2-header-gallery-images.md` | Header/OptionsBar sticky + mobile layout, Select fixes, Classic/Grid/Explorative modes, intrinsic image dimensions | 3, 4, 18, 19, 20, 21, 22, 23, 24, 25, 33 |
 | `phase-3-carousel-routing-admin.md` | Carousel (YARL) fixes, zoom cursor, path-based routing, image ID system, admin sheet | 26, 27, 28, 29, 30, 31, 32, 34 |
 

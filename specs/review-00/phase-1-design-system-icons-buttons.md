@@ -1277,7 +1277,9 @@ Implement in this sequence to minimize conflicts and allow incremental visual ve
 
 10. **Favicon** — create `src/app/icon.svg`
 
-11. **Run `npm run format`** after all file changes
+11. **PWA manifest** — create `src/app/manifest.ts` and update `layout.tsx` with iOS meta tags
+
+12. **Run `npm run format`** after all file changes
 
 ### Critical gotchas summary
 
@@ -1295,3 +1297,133 @@ Implement in this sequence to minimize conflicts and allow incremental visual ve
 | Gutter | The Tailwind arbitrary value `px-[var(--gutter)]` works in Tailwind v4. If any component uses `gap-5` (20px) to mean the gutter, change those too — but verify they are actually page-gutter usages and not component-internal spacing |
 | Icon clipPath in Next.js static export | SVG clip paths work fully client-side; static export has no impact. Confirmed no issue |
 | ButtonGroup Tooltip interaction | Radix Tooltip wraps triggers in a `span[data-state]`. With `asChild`, the button itself receives the Tooltip trigger props. Verify in browser DevTools that the rendered child of `.button-group` is indeed a `<button>` element and not a `<span>` |
+
+---
+
+## 13. PWA Manifest & iOS Meta Tags (Item 35)
+
+**Scope**: Manifest + iOS-specific meta tags only. No service worker, no offline caching.
+
+### Goals
+
+- App launches in standalone (fullscreen, no browser chrome) when added to iOS/Android home screen.
+- Custom splash screen on launch.
+- Status bar color matches the app's dark background. 
+- Important: Manage color change when light mode is active.
+- Maskable icon fills the home screen icon shape on Android.
+
+### 13.1 App Manifest — `src/app/manifest.ts`
+
+Next.js App Router supports a typed manifest via `src/app/manifest.ts` (auto-served at `/manifest.webmanifest`):
+
+```typescript
+// src/app/manifest.ts
+import type { MetadataRoute } from "next"
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "SUPI.ER.TO",
+    short_name: "SUPI",
+    description: "BONE is dead — long live SUPI.ER.TO — Zürich",
+    start_url: "/classic",
+    display: "standalone",           // hides browser chrome on Android
+    background_color: "#000000",     // splash screen bg (matches dark mode)
+    theme_color: "#000000",          // status bar color
+    orientation: "portrait-primary",
+    icons: [
+      {
+        src: "/icons/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        src: "/icons/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+      {
+        src: "/icons/icon-512-maskable.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",         // fills home screen shape on Android
+      },
+    ],
+  }
+}
+```
+
+### 13.2 iOS-Specific Meta Tags — `src/app/layout.tsx`
+
+iOS Safari requires additional meta tags beyond the manifest (it partially ignores the manifest for some properties):
+
+```tsx
+// src/app/layout.tsx — add inside <head>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+{/* "black" = opaque black status bar; "black-translucent" extends content under it */}
+<meta name="apple-mobile-web-app-title" content="SUPI" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+{/* apple-touch-icon.png = 180×180px, used for iOS home screen icon */}
+```
+
+`"black"` for `apple-mobile-web-app-status-bar-style` is appropriate for a dark-default app. Note: `"black-translucent"` makes the status bar overlay the app content (extends the viewport to fill the notch area), which requires extra `env(safe-area-inset-*)` CSS padding — avoid this complexity unless explicitly desired.
+
+### 13.3 App Icons to Create
+
+Generate PNG icons from the favicon SVG (the "SU" on black design). Create them at:
+
+| File | Size | Usage |
+|---|---|---|
+| `public/icons/apple-touch-icon.png` | 180×180 | iOS home screen icon |
+| `public/icons/icon-192.png` | 192×192 | Android manifest icon |
+| `public/icons/icon-512.png` | 512×512 | Android manifest + install dialog |
+| `public/icons/icon-512-maskable.png` | 512×512 | Android maskable icon (safe zone: inner 409×409) |
+
+**Generating**: Use the `sharp` package (already in the project) in a small script, or use an online tool with the SVG. The maskable version should have the "SU" positioned in the center safe zone (80% of dimensions), with the black background extending to the full 512×512.
+
+Script snippet (add to `scripts/generate-icons.ts` or inline in `process-images.ts`):
+
+```typescript
+import sharp from "sharp"
+
+const svgBuffer = /* read src/app/icon.svg as buffer */
+await sharp(svgBuffer).resize(180, 180).png().toFile("public/icons/apple-touch-icon.png")
+await sharp(svgBuffer).resize(192, 192).png().toFile("public/icons/icon-192.png")
+await sharp(svgBuffer).resize(512, 512).png().toFile("public/icons/icon-512.png")
+// For maskable: add black padding so the "SU" glyph is inset 10% from each edge
+await sharp(svgBuffer)
+  .resize(410, 410)  // 80% of 512
+  .extend({ top: 51, bottom: 51, left: 51, right: 51, background: "#000000" })
+  .png()
+  .toFile("public/icons/icon-512-maskable.png")
+```
+
+Add a `generate-icons` script to `package.json`:
+```json
+"generate-icons": "tsx scripts/generate-icons.ts"
+```
+
+### 13.4 Theme Color Dynamic Meta Tag
+
+The manifest hardcodes `theme_color: "#000000"` (dark). iOS Safari also reads `<meta name="theme-color">` for the status bar. To make this dark/light mode aware, add two `theme-color` meta tags with `media` queries:
+
+```html
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+```
+
+Add both to `layout.tsx`. Note: these respond to the **OS** color scheme preference, not the in-app toggle. This is acceptable for the status bar since the OS preference and app preference will usually align.
+
+### 13.5 `next.config.ts` — No Changes Needed
+
+The manifest is handled by Next.js App Router natively via `src/app/manifest.ts`. No plugin or config change required. Icons in `public/` are served as static files at their paths.
+
+### 13.6 Gotchas
+
+| Issue | Notes |
+|---|---|
+| iOS ignores `display: "standalone"` in manifest | The `apple-mobile-web-app-capable` meta tag is what actually enables standalone mode on iOS — both must be present |
+| iOS status bar height | In `standalone` mode with `apple-mobile-web-app-status-bar-style: "black"`, iOS adds ~20px of black status bar area at the top. The sticky header naturally handles this (pushes content below it) |
+| Android Chrome install banner | Requires: manifest present, `start_url` accessible, HTTPS, 192px + 512px icons. These are all satisfied |
+| Favicon vs apple-touch-icon | `src/app/icon.svg` is used as the browser tab favicon. `apple-touch-icon.png` is the iOS home screen icon — they're separate files, both need to exist |
+| `manifest.webmanifest` vs `manifest.json` | Next.js serves at `/manifest.webmanifest` automatically from `src/app/manifest.ts`. No need for `public/manifest.json` |
