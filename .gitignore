@@ -15,7 +15,7 @@ image-sources
 *.pem
 .vscode/
 *.tsbuildinfo
-
+next-envd.d.ts
 
 # debug
 npm-debug.log*
