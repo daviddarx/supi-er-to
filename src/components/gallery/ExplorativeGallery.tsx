@@ -143,26 +143,40 @@ function generateLayout(images: GalleryImage[]): GeneratedLayout {
 /**
  * Renders a single image within the explorative canvas.
  *
- * The rotation is stored as a CSS custom property `--rotation` on the element
- * so that `globals.css` can transition it to `0deg` on hover without needing
- * `!important` to override the inline style. On touch devices the hover
- * effect is suppressed via `@media (hover: hover)`.
- *
- * The full image wrapper is clickable — the fullscreen icon button has been
- * removed in favour of making the whole image the click target.
+ * Hover animation (rotation → 0) is managed via a CSS class `.is-hovering`
+ * toggled with vanilla JS (no React state). The class is kept for 250ms after
+ * mouseleave so the out-animation plays. Only the hovered element ever has a
+ * CSS transition — avoids tracking transitions on all ~1800 elements.
  */
+const HOVER_ANIMATION_MS = 250
+
 const ExplorativeImage = memo(function ExplorativeImage({
   layout,
   image,
   onClick,
 }: ExplorativeImageProps) {
-  // Stable per-instance handler — only changes if onClick or layout.id changes,
-  // which only happens on filter/mode switch (not on drag frames).
   const handleClick = useCallback(() => onClick(layout.id), [onClick, layout.id])
+  const hoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+    e.currentTarget.classList.add("is-animated", "is-hovering")
+  }, [])
+
+  const handleMouseLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    // Remove transform override immediately — animation plays because
+    // .is-animated (with transition) is still present.
+    el.classList.remove("is-hovering")
+    // Remove transition class after the animation completes.
+    hoverTimer.current = setTimeout(() => el.classList.remove("is-animated"), HOVER_ANIMATION_MS)
+  }, [])
 
   return (
     <div
       className="explorative-image"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={
         {
           position: "absolute",

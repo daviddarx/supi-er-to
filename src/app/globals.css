@@ -242,14 +242,20 @@
   cursor: none;
 }
 
-@media (hover: hover) {
-  .explorative-image:hover {
-    /* Transition ONLY on the hovered element — applying transition to all ~1800
-       elements tanks performance during drag. */
-    transition: transform 0.25s ease;
-    transform: rotate(0deg);
-    z-index: 10;
-  }
+/* Hover animation uses two JS-toggled classes so only the hovered element
+   ever carries a CSS transition (not all ~1800).
+   .is-animated  — adds the transition (kept 250ms after mouseleave)
+   .is-hovering  — overrides transform to 0deg + raises z-index
+   On mouseleave .is-hovering is removed immediately (rotation animates back
+   because .is-animated still provides the transition), then .is-animated is
+   removed after the animation completes. */
+.explorative-image.is-animated {
+  transition: transform 0.25s ease;
+}
+
+.explorative-image.is-hovering {
+  transform: rotate(0deg);
+  z-index: 10;
 }
 
 .explorative-image img {
