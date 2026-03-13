@@ -1,0 +1,10 @@
+# Rewrite /classic/<anything> to /classic — SPA handles carousel state via pushState
+/classic/*  /classic  200
+
+# Same for other modes
+/grid/*  /grid  200
+/explorative/*  /explorative  200
+/experimental/*  /experimental  200
+
+# Catch-all: unknown paths → classic (404 fallback)
+/*  /classic  200

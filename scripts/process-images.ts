@@ -21,6 +21,8 @@ interface ImageEntry {
   date: string
   sortOrder: number
   tag: "bone" | "supi"
+  width: number
+  height: number
 }
 
 interface SourceFile {
@@ -138,12 +140,21 @@ async function processImages() {
         console.log(`  ${size}px — done`)
       }
 
+      // Capture intrinsic dimensions from the 2400px output.
+      // Reads the file whether it was just created or previously skipped.
+      const output2400Path = path.join(OUTPUT_IMAGES, `${id}.2400.webp`)
+      const meta = await sharp(output2400Path).metadata()
+      const width = meta.width ?? 0
+      const height = meta.height ?? 0
+
       entries.push({
         id,
         filename: `${id}.webp`,
         date: PLACEHOLDER_DATE,
         sortOrder: i,
         tag: file.tag,
+        width,
+        height,
       })
     } catch (err) {
       console.warn(`  ERROR processing ${id}: ${err}`)

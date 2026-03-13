@@ -10,11 +10,15 @@ interface ClassicGalleryProps {
 
 /**
  * Classic gallery mode — full-width images stacked vertically, newest first.
- * Max 1200px centered. Clicking an image opens the fullscreen carousel.
+ * Max 1200px centered. 15vh gap between images and top padding.
+ * Clicking an image opens the fullscreen carousel.
  */
 export default function ClassicGallery({ images, onImageClick }: ClassicGalleryProps) {
   return (
-    <main className="mx-auto flex max-w-[1200px] flex-col gap-5 px-5 py-20 md:py-16">
+    <main
+      className="mx-auto flex max-w-[1200px] flex-col px-[var(--gutter)]"
+      style={{ gap: "15vh", paddingTop: "15vh", paddingBottom: "15vh" }}
+    >
       {images.map((image, index) => (
         <LoadableImage
           key={image.id}
@@ -24,6 +28,8 @@ export default function ClassicGallery({ images, onImageClick }: ClassicGalleryP
           onClick={() => onImageClick(index)}
           className="w-full"
           overrideSrc={image.previewSrc}
+          width={image.width}
+          height={image.height}
         />
       ))}
     </main>

@@ -20,3 +20,28 @@
 [functions."upload-image"]
   timeout = 26
 
+# ─── Gallery deep-link rewrites ────────────────────────────────────────────────
+# /[mode]/[imageId] deep links are SPA routes — the static mode page is served
+# and the client reads window.location.pathname to open the carousel.
+# These rules also exist in public/_redirects; netlify.toml is the authoritative
+# fallback when @netlify/plugin-nextjs generates its own redirect rules.
+[[redirects]]
+  from = "/classic/*"
+  to = "/classic"
+  status = 200
+
+[[redirects]]
+  from = "/grid/*"
+  to = "/grid"
+  status = 200
+
+[[redirects]]
+  from = "/explorative/*"
+  to = "/explorative"
+  status = 200
+
+[[redirects]]
+  from = "/experimental/*"
+  to = "/experimental"
+  status = 200
+

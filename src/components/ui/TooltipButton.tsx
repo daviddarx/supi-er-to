@@ -29,7 +29,7 @@ export function TooltipButton({
         <button
           onClick={onClick}
           className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-[2px]",
+            "flex h-10 w-10 items-center justify-center",
             variant === "outline" && "border",
             "has-hover:hover:bg-muted",
             className
@@ -39,9 +39,7 @@ export function TooltipButton({
           {icon}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="text-xs">
-        {label}
-      </TooltipContent>
+      <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
   )
 }

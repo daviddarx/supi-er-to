@@ -8,8 +8,10 @@ interface LoadableImageProps {
   id: string
   size: ImageSize
   alt: string
-  /** Optional CSS aspect-ratio value (e.g. 1.5 → 3/2 landscape) */
-  aspectRatio?: number
+  /** Intrinsic width in pixels — sets aspect-ratio on the container before the image loads. */
+  width?: number
+  /** Intrinsic height in pixels — sets aspect-ratio on the container before the image loads. */
+  height?: number
   className?: string
   onClick?: () => void
   /** Override the computed image src (e.g. a local blob URL for optimistic display). */
@@ -18,14 +20,18 @@ interface LoadableImageProps {
 
 /**
  * Lazily-loaded image component using IntersectionObserver.
- * Fades in when loaded. Shows a subtle placeholder background while loading.
+ * Fades in when loaded. Shows a muted placeholder while loading.
  * Loads the image 200px before it enters the viewport for smoother UX.
+ *
+ * If intrinsic `width` and `height` are provided, the container holds its
+ * aspect-ratio before the image loads, preventing layout shift (CLS).
  */
 export function LoadableImage({
   id,
   size,
   alt,
-  aspectRatio,
+  width,
+  height,
   className,
   onClick,
   overrideSrc,
@@ -54,15 +60,25 @@ export function LoadableImage({
     return () => observer.disconnect()
   }, [])
 
+  // Use native aspect-ratio syntax (W/H) — avoids pre-dividing to a decimal
+  const aspectRatioStyle =
+    width && height && width > 0 && height > 0 ? { aspectRatio: `${width}/${height}` } : undefined
+
   return (
     <div
       ref={containerRef}
       onClick={onClick}
-      className={cn("relative overflow-hidden", onClick && "cursor-pointer", className)}
-      style={aspectRatio ? { aspectRatio: String(aspectRatio) } : undefined}
+      onMouseEnter={
+        onClick ? () => window.dispatchEvent(new CustomEvent("image-hover-start")) : undefined
+      }
+      onMouseLeave={
+        onClick ? () => window.dispatchEvent(new CustomEvent("image-hover-end")) : undefined
+      }
+      className={cn("relative overflow-hidden", onClick && "cursor-none", className)}
+      style={aspectRatioStyle}
     >
-      {/* Subtle placeholder while the image loads */}
-      <div className="bg-muted/20 absolute inset-0" />
+      {/* Placeholder background — always rendered, stays below the image */}
+      <div className="bg-muted/20 absolute inset-0 z-0" />
 
       {isVisible && !hasError && (
         <img
@@ -71,7 +87,7 @@ export function LoadableImage({
           onLoad={() => setIsLoaded(true)}
           onError={() => setHasError(true)}
           className={cn(
-            "h-full w-full object-cover transition-opacity duration-300",
+            "absolute inset-0 z-10 h-full w-full object-cover transition-opacity duration-300",
             isLoaded ? "opacity-100" : "opacity-0"
           )}
           draggable={false}

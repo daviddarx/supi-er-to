@@ -232,7 +232,7 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
           <SheetTitle className="text-sm font-bold">New piece arrival</SheetTitle>
         </SheetHeader>
 
-        <div className="mt-6 flex flex-col gap-5">
+        <div className="mt-6 flex flex-col gap-5 px-6 pb-6">
           {/* File picker */}
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">Image (JPG or PNG)</Label>
@@ -246,7 +246,7 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
 
           {/* Preview */}
           {previewUrl && (
-            <div className="overflow-hidden rounded-[2px] border">
+            <div className="overflow-hidden border">
               <img src={previewUrl} alt="Preview" className="max-h-[250px] w-full object-contain" />
             </div>
           )}

@@ -62,6 +62,44 @@ async function fetchCurrentImages(
 }
 
 /**
+ * Generates the next sequential ID for a given tag by scanning existing images
+ * to find the highest numeric suffix for that tag prefix.
+ *
+ * Returns "{tag}-1" if no images with that tag exist yet.
+ * Ignores IDs that do not match the "{tag}-{digits}" pattern (e.g. old
+ * "img-{timestamp}" entries are safely skipped by the `startsWith` guard).
+ *
+ * @param tag           - The tag ("supi" | "bone") for the new image
+ * @param existingImages - Current images.json entries from the repository
+ * @returns             New ID string, e.g. "supi-198" or "bone-1"
+ *
+ * @example
+ *   // images.json contains supi-1 through supi-197
+ *   generateNextId("supi", images) // → "supi-198"
+ *   // images.json has no "bone" entries
+ *   generateNextId("bone", images) // → "bone-1"
+ */
+function generateNextId(tag: "supi" | "bone", existingImages: GalleryImage[]): string {
+  const prefix = `${tag}-`
+  // Match exactly "{tag}-{digits}" — the startsWith guard prevents false matches
+  // from other tags or legacy "img-{timestamp}" IDs
+  const pattern = new RegExp(`^${tag}-(\\d+)$`)
+
+  let maxNum = 0
+  for (const img of existingImages) {
+    // Skip any ID that doesn't start with this tag's prefix (covers legacy img-{ts} IDs)
+    if (!img.id.startsWith(prefix)) continue
+    const match = img.id.match(pattern)
+    if (match) {
+      const num = parseInt(match[1], 10)
+      if (num > maxNum) maxNum = num
+    }
+  }
+
+  return `${tag}-${maxNum + 1}`
+}
+
+/**
  * Netlify Function: upload-image
  *
  * Accepts a base64-encoded image from the admin panel, compresses it to
@@ -201,8 +239,6 @@ const handler: Handler = async (event) => {
     }
   }
 
-  const id = `img-${Date.now()}`
-
   // Three output sizes per the spec: thumbnail, standard, full-res
   const SIZES = [500, 1280, 2400] as const
 
@@ -228,6 +264,12 @@ const handler: Handler = async (event) => {
     }
   }
 
+  // Capture intrinsic dimensions from the 2400px output buffer (index 2 = 2400px).
+  // SIZES is [500, 1280, 2400] so index 2 is always the 2400px variant.
+  const meta2400 = await sharp(compressedBuffers[2]).metadata()
+  const intrinsicWidth = meta2400.width ?? 0
+  const intrinsicHeight = meta2400.height ?? 0
+
   // ── GitHub commit ─────────────────────────────────────────────────────────
   const repoOwner = process.env.GITHUB_REPO_OWNER!
   // GITHUB_REPO is stored as "owner/repo" in env; we only need the repo part here
@@ -236,12 +278,17 @@ const handler: Handler = async (event) => {
 
   const currentImages = await fetchCurrentImages(githubToken, repoOwner, repoName)
 
+  // Derive the next sequential ID for this tag, e.g. "supi-198" or "bone-1"
+  const id = generateNextId(tag as "supi" | "bone", currentImages)
+
   const newEntry: GalleryImage = {
     id,
     filename: `${id}.webp`,
     date,
     sortOrder: parsedSortOrder,
     tag: tag as "bone" | "supi",
+    width: intrinsicWidth,
+    height: intrinsicHeight,
   }
 
   // Append the new entry; sorting is handled at read time by the gallery

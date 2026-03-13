@@ -1,15 +1,18 @@
 /**
  * Custom SVG icon set for SUPI.ER.TO.
- * All icons: 24×24px, stroke="currentColor", strokeWidth=1.5,
+ * All icons: 24×24px, stroke="currentColor", strokeWidth=1,
  * fill="none", strokeLinecap="round", strokeLinejoin="round".
  * No external icon library used.
  */
 
+import { useId } from "react"
+
 interface IconProps {
   className?: string
+  strokeWidth?: number
 }
 
-export function IconClassic({ className }: IconProps) {
+export function IconClassic({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -17,19 +20,21 @@ export function IconClassic({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
     >
-      <rect x="4" y="4" width="16" height="5" />
-      <rect x="4" y="11" width="16" height="5" />
-      <rect x="4" y="18" width="10" height="2" />
+      {/* 3 equal rectangles, 16×4 each, 3px gaps, 3px top/bottom margins */}
+      {/* Verification: 3 + 4 + 3 + 4 + 3 + 4 + 3 = 24 ✓ */}
+      <rect x="4" y="3" width="16" height="4" />
+      <rect x="4" y="10" width="16" height="4" />
+      <rect x="4" y="17" width="16" height="4" />
     </svg>
   )
 }
 
-export function IconGrid({ className }: IconProps) {
+export function IconGrid({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -37,20 +42,32 @@ export function IconGrid({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
     >
-      <rect x="3" y="3" width="7" height="9" />
-      <rect x="14" y="3" width="7" height="5" />
-      <rect x="3" y="15" width="7" height="6" />
-      <rect x="14" y="11" width="7" height="10" />
+      <rect x="3" y="3" width="8" height="8" />
+      <rect x="13" y="3" width="8" height="8" />
+      <rect x="3" y="13" width="8" height="8" />
+      <rect x="13" y="13" width="8" height="8" />
     </svg>
   )
 }
 
-export function IconExplorative({ className }: IconProps) {
+/**
+ * IconExplorative — 3 overlapping rectangles at different positions and sizes,
+ * no rotation transforms. Rect C is in front; Rect A and Rect B are clipped
+ * where Rect C covers them, creating a depth/layering illusion.
+ *
+ * Uses useId() to generate unique clipPath IDs per instance, preventing
+ * incorrect clipping when multiple instances are rendered on the same page.
+ */
+export function IconExplorative({ className, strokeWidth = 1 }: IconProps) {
+  const id = useId()
+  const clipAId = `explorative-clipA-${id}`
+  const clipBId = `explorative-clipB-${id}`
+
   return (
     <svg
       width={24}
@@ -58,19 +75,43 @@ export function IconExplorative({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
     >
-      <rect x="3" y="8" width="8" height="6" transform="rotate(-8 7 11)" />
-      <rect x="13" y="4" width="7" height="5" transform="rotate(6 16.5 6.5)" />
-      <rect x="11" y="13" width="9" height="7" transform="rotate(-5 15.5 16.5)" />
+      <defs>
+        {/*
+         * Clip Rect A (x:2–12, y:4–13) to exclude the region covered by Rect C (x:5–19, y:10–22).
+         * Overlap: x:5–12, y:10–13 (bottom-right corner of Rect A).
+         * Visible L-shape: full top band (x:2–12, y:4–10) + left strip (x:2–5, y:10–13).
+         */}
+        <clipPath id={clipAId}>
+          <path d="M 2 4 L 12 4 L 12 10 L 5 10 L 5 13 L 2 13 Z" />
+        </clipPath>
+        {/*
+         * Clip Rect B (x:12–22, y:2–12) to exclude the region covered by Rect C (x:5–19, y:10–22).
+         * Overlap: x:12–19, y:10–12 (bottom-left corner of Rect B).
+         * Visible reverse-L shape: full top band (x:12–22, y:2–10) + right strip (x:19–22, y:10–12).
+         */}
+        <clipPath id={clipBId}>
+          <path d="M 12 2 L 22 2 L 22 12 L 19 12 L 19 10 L 12 10 Z" />
+        </clipPath>
+      </defs>
+
+      {/* Rect A — back-left, clipped where Rect C overlaps */}
+      <rect x="2" y="4" width="10" height="9" clipPath={`url(#${clipAId})`} />
+
+      {/* Rect B — back-right, clipped where Rect C overlaps */}
+      <rect x="12" y="2" width="10" height="10" clipPath={`url(#${clipBId})`} />
+
+      {/* Rect C — front, unclipped */}
+      <rect x="5" y="10" width="14" height="12" />
     </svg>
   )
 }
 
-export function IconExperimental({ className }: IconProps) {
+export function IconExperimental({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -78,11 +119,12 @@ export function IconExperimental({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
     >
+      {/* 3D cube wireframe — outer hexagon + internal spokes to center */}
       <path d="M12 3 L20 7.5 L20 16.5 L12 21 L4 16.5 L4 7.5 Z" />
       <path d="M12 3 L12 12" />
       <path d="M4 7.5 L12 12" />
@@ -91,7 +133,7 @@ export function IconExperimental({ className }: IconProps) {
   )
 }
 
-export function IconSun({ className }: IconProps) {
+export function IconSun({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -99,7 +141,7 @@ export function IconSun({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -109,6 +151,7 @@ export function IconSun({ className }: IconProps) {
       <line x1="12" y1="19" x2="12" y2="22" />
       <line x1="2" y1="12" x2="5" y2="12" />
       <line x1="19" y1="12" x2="22" y2="12" />
+      {/* Diagonal rays — 45° geometry on 24px grid, irrational coordinates are inherent */}
       <line x1="4.22" y1="4.22" x2="6.34" y2="6.34" />
       <line x1="17.66" y1="17.66" x2="19.78" y2="19.78" />
       <line x1="4.22" y1="19.78" x2="6.34" y2="17.66" />
@@ -117,7 +160,7 @@ export function IconSun({ className }: IconProps) {
   )
 }
 
-export function IconMoon({ className }: IconProps) {
+export function IconMoon({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -125,7 +168,7 @@ export function IconMoon({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -135,7 +178,7 @@ export function IconMoon({ className }: IconProps) {
   )
 }
 
-export function IconFullscreen({ className }: IconProps) {
+export function IconFullscreen({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -143,11 +186,16 @@ export function IconFullscreen({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
     >
+      {/*
+       * Corner notches for fullscreen indicator.
+       * The arc commands (a 2 2) are intentional SVG arc design — NOT CSS border-radius.
+       * They are preserved as-is from the original shadcn source.
+       */}
       <path d="M8 3H5a2 2 0 0 0-2 2v3" />
       <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
       <path d="M3 16v3a2 2 0 0 0 2 2h3" />
@@ -156,7 +204,7 @@ export function IconFullscreen({ className }: IconProps) {
   )
 }
 
-export function IconClose({ className }: IconProps) {
+export function IconClose({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -164,7 +212,7 @@ export function IconClose({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -175,7 +223,7 @@ export function IconClose({ className }: IconProps) {
   )
 }
 
-export function IconArrowLeft({ className }: IconProps) {
+export function IconArrowLeft({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -183,7 +231,7 @@ export function IconArrowLeft({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -193,7 +241,7 @@ export function IconArrowLeft({ className }: IconProps) {
   )
 }
 
-export function IconArrowRight({ className }: IconProps) {
+export function IconArrowRight({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -201,7 +249,7 @@ export function IconArrowRight({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -211,7 +259,7 @@ export function IconArrowRight({ className }: IconProps) {
   )
 }
 
-export function IconUpload({ className }: IconProps) {
+export function IconUpload({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -219,7 +267,7 @@ export function IconUpload({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -231,7 +279,7 @@ export function IconUpload({ className }: IconProps) {
   )
 }
 
-export function IconLogOut({ className }: IconProps) {
+export function IconLogOut({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -239,7 +287,7 @@ export function IconLogOut({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -251,7 +299,7 @@ export function IconLogOut({ className }: IconProps) {
   )
 }
 
-export function IconPlus({ className }: IconProps) {
+export function IconPlus({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
       width={24}
@@ -259,13 +307,41 @@ export function IconPlus({ className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
     >
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+/**
+ * IconPlusCircle — a plus sign inside a circle.
+ * Used as the zoom cursor indicator for gallery images in Classic, Grid, and Explorative modes.
+ *
+ * Circle: cx=12, cy=12, r=9 (2px margin from canvas edge on each side).
+ * Plus arms: 6px reach from center in each direction (x: 6–18, y: 6–18).
+ * All coordinates are whole pixels.
+ */
+export function IconPlusCircle({ className, strokeWidth = 1 }: IconProps) {
+  return (
+    <svg
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="7" x2="12" y2="17" />
+      <line x1="7" y1="12" x2="17" y2="12" />
     </svg>
   )
 }

@@ -61,10 +61,7 @@ export function AdminClient() {
           </p>
           <div className="flex flex-col gap-2">
             {recentlyAdded.map((img) => (
-              <div
-                key={img.id}
-                className="flex items-center gap-3 rounded-[2px] border p-2 text-xs"
-              >
+              <div key={img.id} className="flex items-center gap-3 border p-2 text-xs">
                 {/* Preview shown from the optimistic /images/ path — won't load until rebuild */}
                 <img
                   src={`/images/${img.id}.500.webp`}

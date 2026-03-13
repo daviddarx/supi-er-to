@@ -13,6 +13,7 @@ interface GridGalleryProps {
 /**
  * Grid gallery mode — masonry layout using react-masonry-css.
  * Column count is computed dynamically from the container width (~500px per column).
+ * Minimum 2 columns at all screen sizes. 1px gap between images.
  * The masonry grid CSS lives in globals.css (not duplicated here).
  */
 export default function GridGallery({ images, onImageClick }: GridGalleryProps) {
@@ -23,8 +24,8 @@ export default function GridGallery({ images, onImageClick }: GridGalleryProps) 
     const updateColumns = () => {
       if (!containerRef.current) return
       const containerWidth = containerRef.current.offsetWidth
-      // Aim for ~500px columns; always at least 1
-      const cols = Math.max(1, Math.round(containerWidth / 500))
+      // Aim for ~500px columns; always at least 2 columns
+      const cols = Math.max(2, Math.round(containerWidth / 500))
       setColumnCount(cols)
     }
 
@@ -37,7 +38,7 @@ export default function GridGallery({ images, onImageClick }: GridGalleryProps) 
   }, [images])
 
   return (
-    <div ref={containerRef} className="mx-auto max-w-[2000px] px-5 py-20 md:py-16">
+    <div ref={containerRef} className="pb-5">
       <Masonry
         breakpointCols={columnCount}
         className="masonry-grid"
@@ -50,8 +51,10 @@ export default function GridGallery({ images, onImageClick }: GridGalleryProps) 
             size={500}
             alt={`${image.tag} piece`}
             onClick={() => onImageClick(index)}
-            className="mb-5 w-full"
+            className="mb-px w-full"
             overrideSrc={image.previewSrc}
+            width={image.width}
+            height={image.height}
           />
         ))}
       </Masonry>

@@ -99,14 +99,14 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* 2px border-radius everywhere — override shadcn defaults */
-  --radius-sm: 2px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-xl: 2px;
-  --radius-2xl: 2px;
-  --radius-3xl: 2px;
-  --radius-4xl: 2px;
+  /* No border-radius anywhere */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
 
   /* DM Mono as both mono and sans */
   --font-sans: var(--font-dm-mono), ui-monospace, monospace;
@@ -134,7 +134,8 @@
 
 /* Light mode */
 :root {
-  --radius: 2px;
+  --gutter: 20px;
+  --radius: 0px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -150,9 +151,9 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0 0 0 / 12%);
+  --input: oklch(0 0 0 / 12%);
+  --ring: oklch(0 0 0 / 30%);
 }
 
 /* Dark mode — default */
@@ -182,23 +183,45 @@
     @apply border-border;
     /* No box shadows anywhere */
     box-shadow: none !important;
-    border-radius: 2px;
+    border-radius: 0;
+  }
+
+  html {
+    scrollbar-gutter: stable;
   }
 
   body {
     @apply bg-background text-foreground font-mono antialiased;
+    font-size: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  /* WebKit (Chrome, Safari, Edge) */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 0;
   }
 }
 
 /* ─── react-masonry-css ─────────────────────────────────── */
 .masonry-grid {
   display: flex;
-  margin-left: -20px;
+  margin-left: -1px;
   width: auto;
 }
 
 .masonry-grid_column {
-  padding-left: 20px;
+  padding-left: 1px;
   background-clip: padding-box;
 }
 
@@ -213,9 +236,120 @@
   cursor: grabbing;
 }
 
+.explorative-image {
+  /* Rotation is driven by --rotation CSS custom property set inline from React.
+     Transitioning via a CSS var avoids the need for !important to override the
+     inline style on hover. */
+  transform: rotate(var(--rotation, 0deg));
+  transition: transform 0.25s ease;
+  z-index: 1;
+  cursor: none;
+}
+
+@media (hover: hover) {
+  .explorative-image:hover {
+    transform: rotate(0deg);
+    z-index: 10;
+  }
+}
+
 .explorative-image img {
   pointer-events: none;
   -webkit-user-drag: none;
+}
+
+/* ─── ButtonGroup ─────────────────────────────────────────── */
+.button-group > button,
+.button-group > [role="button"] {
+  /* Shared base styles for all group buttons */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem; /* h-10 = 40px */
+  width: 2.5rem; /* w-10 = 40px */
+  border-style: solid;
+  border-width: 1px;
+  border-color: var(--border);
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  border-radius: 0;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+/* First button: full border (the shared rule already applies 1px all sides) */
+.button-group > button:first-child,
+.button-group > [role="button"]:first-child {
+  border-left-width: 1px;
+}
+
+/* Subsequent buttons: no left border (avoids double border at join) */
+.button-group > button:not(:first-child),
+.button-group > [role="button"]:not(:first-child) {
+  border-left-width: 0;
+}
+
+/* Hover state (hover-capable devices only) */
+@media (hover: hover) {
+  .button-group > button:hover,
+  .button-group > [role="button"]:hover {
+    background-color: var(--muted);
+    border-color: var(--muted);
+  }
+}
+
+/* Active / selected state */
+.button-group > button[aria-pressed="true"],
+.button-group > [role="button"][aria-pressed="true"],
+.button-group > button[data-active="true"],
+.button-group > [role="button"][data-active="true"] {
+  background-color: var(--foreground);
+  color: var(--background);
+  border-color: var(--foreground);
+}
+
+/*
+  For non-first active buttons: restore the left border and use a negative
+  margin to overlap the preceding button's right border. This ensures the
+  active button's left edge reads as a clean foreground fill boundary rather
+  than exposing a --border colored right edge of the preceding button.
+  CSS has no "previous sibling" selector, so this negative-margin trick is
+  the cleanest approach.
+*/
+.button-group > button[aria-pressed="true"]:not(:first-child),
+.button-group > [role="button"][aria-pressed="true"]:not(:first-child) {
+  border-left-width: 1px;
+  margin-left: -1px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Standalone icon button (same visual spec as ButtonGroup button) ─── */
+.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  width: 2.5rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  border-radius: 0;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+@media (hover: hover) {
+  .icon-button:hover {
+    background-color: var(--muted);
+    border-color: var(--muted);
+  }
 }
 
 /* ─── YARL overrides ────────────────────────────────────── */

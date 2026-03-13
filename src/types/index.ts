@@ -10,6 +10,10 @@ export interface GalleryImage {
   date: string
   sortOrder: number
   tag: Tag
+  /** Intrinsic width in pixels (of the 2400px output, or original if smaller). */
+  width: number
+  /** Intrinsic height in pixels (of the 2400px output, or original if smaller). */
+  height: number
   /** Temporary blob URL for optimistic display before the Netlify rebuild completes. Never persisted. */
   previewSrc?: string
 }
