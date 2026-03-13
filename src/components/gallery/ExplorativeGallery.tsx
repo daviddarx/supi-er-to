@@ -77,7 +77,7 @@ interface ExplorativeGalleryProps {
 interface ExplorativeImageProps {
   layout: ImageLayout
   image: GalleryImage
-  onClick: () => void
+  onClick: (id: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +156,10 @@ const ExplorativeImage = memo(function ExplorativeImage({
   image,
   onClick,
 }: ExplorativeImageProps) {
+  // Stable per-instance handler — only changes if onClick or layout.id changes,
+  // which only happens on filter/mode switch (not on drag frames).
+  const handleClick = useCallback(() => onClick(layout.id), [onClick, layout.id])
+
   return (
     <div
       className="explorative-image"
@@ -179,7 +183,7 @@ const ExplorativeImage = memo(function ExplorativeImage({
         overrideSrc={image.previewSrc}
         width={image.width}
         height={image.height}
-        onClick={onClick}
+        onClick={handleClick}
       />
     </div>
   )
@@ -452,7 +456,7 @@ export default function ExplorativeGallery({ images, onImageClick }: Explorative
                   key={layout.id}
                   layout={layout}
                   image={image}
-                  onClick={() => handleImageClick(layout.id)}
+                  onClick={handleImageClick}
                 />
               )
             })}

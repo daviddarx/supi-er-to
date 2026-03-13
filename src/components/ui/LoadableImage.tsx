@@ -78,7 +78,10 @@ export function LoadableImage({
       style={aspectRatioStyle}
     >
       {/* Placeholder background — always rendered, stays below the image */}
-      <div className="bg-muted/20 absolute inset-0 z-0" />
+      {/* Placeholder — no z-index to avoid creating stacking contexts on every
+           image (1800+ in explorative mode). Natural DOM order ensures the img
+           rendered after this div paints on top. */}
+      <div className="bg-muted/20 absolute inset-0" />
 
       {isVisible && !hasError && (
         <img
@@ -87,7 +90,7 @@ export function LoadableImage({
           onLoad={() => setIsLoaded(true)}
           onError={() => setHasError(true)}
           className={cn(
-            "absolute inset-0 z-10 h-full w-full object-cover transition-opacity duration-300",
+            "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
             isLoaded ? "opacity-100" : "opacity-0"
           )}
           draggable={false}

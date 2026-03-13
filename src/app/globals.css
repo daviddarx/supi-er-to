@@ -237,17 +237,16 @@
 }
 
 .explorative-image {
-  /* Rotation is driven by --rotation CSS custom property set inline from React.
-     Transitioning via a CSS var avoids the need for !important to override the
-     inline style on hover. */
+  /* Rotation is driven by --rotation CSS custom property set inline from React. */
   transform: rotate(var(--rotation, 0deg));
-  transition: transform 0.25s ease;
-  z-index: 1;
   cursor: none;
 }
 
 @media (hover: hover) {
   .explorative-image:hover {
+    /* Transition ONLY on the hovered element — applying transition to all ~1800
+       elements tanks performance during drag. */
+    transition: transform 0.25s ease;
     transform: rotate(0deg);
     z-index: 10;
   }
