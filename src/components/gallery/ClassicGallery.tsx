@@ -16,7 +16,7 @@ interface ClassicGalleryProps {
 export default function ClassicGallery({ images, onImageClick }: ClassicGalleryProps) {
   return (
     <main
-      className="mx-auto flex max-w-[1200px] flex-col px-[var(--gutter)]"
+      className="px-gutter mx-auto flex max-w-[1200px] flex-col"
       style={{ gap: "15vh", paddingTop: "15vh", paddingBottom: "15vh" }}
     >
       {images.map((image, index) => (
