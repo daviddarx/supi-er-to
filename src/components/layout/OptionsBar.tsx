@@ -128,12 +128,12 @@ export function OptionsBar({
           </Tooltip>
 
           {isAdmin && (
-            <>
+            <div className="flex items-center">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     onClick={onNewPiece}
-                    className="has-hover:hover:bg-muted flex h-10 w-10 cursor-pointer items-center justify-center border"
+                    className="has-hover:hover:bg-muted flex h-10 w-10 cursor-pointer items-center justify-center border border-r-0 transition-colors"
                     aria-label="New piece arrival"
                   >
                     <IconPlus />
@@ -148,7 +148,7 @@ export function OptionsBar({
                 <TooltipTrigger asChild>
                   <button
                     onClick={onLogOut}
-                    className="has-hover:hover:bg-muted flex h-10 w-10 cursor-pointer items-center justify-center border"
+                    className="has-hover:hover:bg-muted flex h-10 w-10 cursor-pointer items-center justify-center border transition-colors"
                     aria-label="Log out"
                   >
                     <IconLogOut />
@@ -158,7 +158,7 @@ export function OptionsBar({
                   Log out
                 </TooltipContent>
               </Tooltip>
-            </>
+            </div>
           )}
         </div>
       </div>
