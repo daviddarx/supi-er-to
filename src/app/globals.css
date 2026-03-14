@@ -108,6 +108,9 @@
   --radius-3xl: 0px;
   --radius-4xl: 0px;
 
+  /* Site gutter — single spacing token for page-level horizontal padding */
+  --spacing-gutter: var(--gutter);
+
   /* DM Mono as both mono and sans */
   --font-sans: var(--font-dm-mono), ui-monospace, monospace;
   --font-mono: var(--font-dm-mono), ui-monospace, monospace;

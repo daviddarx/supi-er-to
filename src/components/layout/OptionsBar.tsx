@@ -60,7 +60,7 @@ export function OptionsBar({
   onLogOut,
 }: OptionsBarProps) {
   return (
-    <div className="bg-background sticky top-0 z-50 flex items-center gap-2 px-3 py-3 max-md:flex-col max-md:items-stretch max-md:px-5 max-md:py-3">
+    <div className="flex items-center justify-end gap-2 max-md:flex-col max-md:items-stretch p-gutter">
       {/* Row 1 (mobile only): image set selector — full width */}
       {/* On desktop this sits inline in the single flex row */}
       <Select value={filter} onValueChange={(v) => onFilterChange(v as ImageFilter)}>

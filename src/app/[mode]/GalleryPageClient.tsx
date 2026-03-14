@@ -278,8 +278,8 @@ export function GalleryPageClient() {
   return (
     <TooltipProvider>
       <div className="bg-background min-h-screen">
-        {/* Sticky header unit — Header + OptionsBar stick together as one block */}
-        <div className="bg-background sticky top-0 z-50 flex flex-col">
+        {/* Sticky header unit — Header + OptionsBar on the same row */}
+        <div className="sticky top-0 z-50 flex items-center justify-between max-md:flex-col max-md:items-stretch">
           <Header />
           <OptionsBar
             mode={mode}
