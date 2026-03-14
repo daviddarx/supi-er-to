@@ -34,6 +34,10 @@ function FadeSlide({ slide, rect }: RenderSlideProps) {
         transition: "opacity 0.3s ease",
         width: "100%",
         height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        pointerEvents: "none",
       }}
     >
       <ImageSlide slide={slide} rect={rect} onLoad={() => setLoaded(true)} />
@@ -48,22 +52,20 @@ function FadeSlide({ slide, rect }: RenderSlideProps) {
 
 interface NavButtonProps {
   direction: "prev" | "next"
-  iconColor: string
   btnClass: string
 }
 
-function NavButton({ direction, iconColor, btnClass }: NavButtonProps) {
+function NavButton({ direction, btnClass }: NavButtonProps) {
   const { prev, next } = useController()
 
   return (
     <button
       onClick={() => (direction === "prev" ? prev() : next())}
       className={cn(
-        "absolute top-1/2 z-50 -translate-y-1/2",
+        "absolute z-50 max-md:bottom-4 md:top-1/2 md:-translate-y-1/2",
         direction === "prev" ? "left-4" : "right-4",
         btnClass
       )}
-      style={{ color: iconColor }}
       aria-label={direction === "prev" ? "Previous image" : "Next image"}
     >
       {direction === "prev" ? (
@@ -82,18 +84,16 @@ function NavButton({ direction, iconColor, btnClass }: NavButtonProps) {
 // exit transition.
 
 interface CloseButtonProps {
-  iconColor: string
   btnClass: string
 }
 
-function CloseButton({ iconColor, btnClass }: CloseButtonProps) {
+function CloseButton({ btnClass }: CloseButtonProps) {
   const { close } = useController()
 
   return (
     <button
       onClick={() => close()}
-      className={cn("absolute top-4 right-4 z-50", btnClass)}
-      style={{ color: iconColor }}
+      className={cn("absolute right-4 z-50 max-md:bottom-4 md:top-4", btnClass)}
       aria-label="Close"
     >
       <IconClose strokeWidth={1} />
@@ -137,12 +137,10 @@ export function CarouselOverlay({
   )
 
   const backdropColor = isDarkMode ? "rgba(0, 0, 0, 0.95)" : "rgba(255, 255, 255, 0.95)"
-  const iconColor = isDarkMode ? "#ffffff" : "#000000"
 
-  // 40×40px buttons matching the header ButtonGroup spec.
-  // bg-background/20 keeps them readable against any image backdrop.
+  // 40×40px buttons matching the header buttons exactly.
   const btnClass =
-    "flex h-10 w-10 items-center justify-center border border-current bg-background/20 transition-colors has-hover:hover:bg-background/40"
+    "flex h-10 w-10 cursor-pointer items-center justify-center border bg-transparent transition-colors has-hover:hover:bg-muted"
 
   return (
     <Lightbox
@@ -160,9 +158,9 @@ export function CarouselOverlay({
       }
       render={{
         slide: (props) => <FadeSlide {...props} />,
-        buttonClose: () => <CloseButton iconColor={iconColor} btnClass={btnClass} />,
-        buttonPrev: () => <NavButton direction="prev" iconColor={iconColor} btnClass={btnClass} />,
-        buttonNext: () => <NavButton direction="next" iconColor={iconColor} btnClass={btnClass} />,
+        buttonClose: () => <CloseButton key="close" btnClass={btnClass} />,
+        buttonPrev: () => <NavButton key="prev" direction="prev" btnClass={btnClass} />,
+        buttonNext: () => <NavButton key="next" direction="next" btnClass={btnClass} />,
       }}
       carousel={{ padding: "5%" }}
       animation={{ swipe: 300 }}

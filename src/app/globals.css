@@ -189,15 +189,22 @@
     border-radius: 0;
   }
 
-  html {
-    scrollbar-gutter: stable;
+  /* Prevent any library (Radix, YARL, react-remove-scroll, etc.) from locking
+     scroll or adding padding to compensate for scrollbar removal.
+     overflow: auto !important keeps the scrollbar always visible, so there is
+     never a layout shift — no scrollbar-gutter trick needed. */
+  html,
+  body {
+    overflow: auto !important;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
   }
 
-  /* Prevent Radix / react-remove-scroll from locking scroll or adding padding */
-  body[data-scroll-locked] {
-    overflow: auto !important;
-    margin-right: 0 !important;
+  /* react-remove-scroll injects inline padding-right on position:fixed
+     elements to compensate for scrollbar removal. Block it. */
+  .no-scroll-compensate {
     padding-right: 0 !important;
+    margin-right: 0 !important;
   }
 
   ::selection {
@@ -384,4 +391,19 @@
 
 .yarl__container {
   padding: 0;
+}
+
+/* Responsive carousel padding: none on mobile, gutter on tablet, keep 5% on desktop (set via prop) */
+@media (max-width: 639px) {
+  .yarl__slide {
+    --yarl__carousel_padding_percent: 0 !important;
+    --yarl__carousel_padding_px: 0 !important;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .yarl__slide {
+    --yarl__carousel_padding_percent: 0 !important;
+    --yarl__carousel_padding_px: 20 !important;
+  }
 }

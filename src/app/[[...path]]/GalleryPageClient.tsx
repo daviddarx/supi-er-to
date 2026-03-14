@@ -55,16 +55,22 @@ const VALID_MODES: GalleryMode[] = ["classic", "grid", "explorative", "experimen
  * Browser back/forward: popstate listener keeps carousel state in sync with
  * the pushState history entries written by openCarousel / closeCarousel.
  */
-export function GalleryPageClient() {
+export default function GalleryPageClient() {
   const router = useRouter()
-  const params = useParams<{ mode: string }>()
+  const params = useParams<{ path?: string[] }>()
   const { data: session } = useSession()
   const isAdmin = !!session
 
-  // Derive mode directly from the [mode] URL segment — no local state needed.
-  // useParams() stays live if the segment changes (e.g. programmatic navigation),
-  // whereas a useState initializer would only run once on mount.
-  const rawMode = params?.mode as GalleryMode
+  // Redirect bare "/" to /classic
+  const pathSegments = params?.path
+  useEffect(() => {
+    if (!pathSegments || pathSegments.length === 0) {
+      router.replace("/classic")
+    }
+  }, [pathSegments, router])
+
+  // Derive mode from the first path segment: /classic/supi-38 → path = ["classic", "supi-38"]
+  const rawMode = pathSegments?.[0] as GalleryMode
   const mode: GalleryMode = VALID_MODES.includes(rawMode) ? rawMode : "classic"
 
   // Read initial filter from ?filter= query param
@@ -295,7 +301,7 @@ export function GalleryPageClient() {
         {/* Fixed bottom bar — Header + OptionsBar on the same row */}
         <div
           ref={headerRef}
-          className="bg-background fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between max-md:flex-col max-md:items-stretch"
+          className="no-scroll-compensate bg-background fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between max-md:flex-col max-md:items-stretch"
         >
           <Header />
           <OptionsBar
