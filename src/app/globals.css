@@ -200,6 +200,11 @@
     padding-right: 0 !important;
   }
 
+  ::selection {
+    background-color: var(--foreground);
+    color: var(--background);
+  }
+
   body {
     @apply bg-background text-foreground font-mono antialiased;
     font-size: 14px;
