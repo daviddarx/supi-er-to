@@ -242,7 +242,7 @@
 .explorative-image {
   /* Rotation is driven by --rotation CSS custom property set inline from React. */
   transform: rotate(var(--rotation, 0deg));
-  cursor: none;
+  cursor: pointer;
 }
 
 /* Hover animation uses two JS-toggled classes so only the hovered element

@@ -185,7 +185,7 @@ const ExplorativeImage = memo(function ExplorativeImage({
           width: layout.width,
           "--rotation": `${layout.rotation}deg`,
           transformOrigin: "center center",
-          cursor: "none",
+          cursor: "pointer",
         } as React.CSSProperties
       }
     >

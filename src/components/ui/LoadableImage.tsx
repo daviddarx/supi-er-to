@@ -74,7 +74,7 @@ export function LoadableImage({
       onMouseLeave={
         onClick ? () => window.dispatchEvent(new CustomEvent("image-hover-end")) : undefined
       }
-      className={cn("relative overflow-hidden", onClick && "cursor-none", className)}
+      className={cn("relative overflow-hidden", onClick && "cursor-pointer", className)}
       style={aspectRatioStyle}
     >
       {/* Placeholder background — always rendered, stays below the image */}
