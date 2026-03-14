@@ -276,7 +276,7 @@
 }
 
 .explorative-image.is-hovering {
-  transform: rotate(0deg);
+  transform: rotate(0deg) scale(1.2);
   z-index: 10;
 }
 
