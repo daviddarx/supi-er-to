@@ -84,17 +84,18 @@ export function OptionsBar({
       {/* On desktop: md:contents collapses the wrapper so children flow directly into the outer flex row */}
       <div className="flex items-center justify-between gap-2 max-md:w-full md:contents">
         {/* Gallery mode switcher */}
-        <div className="flex items-center overflow-hidden border">
+        <div className="flex items-center">
           {MODES.map(({ mode: m, icon, label }) => (
             <Tooltip key={m}>
               <TooltipTrigger asChild>
                 <button
                   onClick={() => onModeChange(m)}
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center border-r transition-colors last:border-r-0",
+                    "has-hover:hover:bg-muted has-hover:hover:border-muted flex h-10 w-10 items-center justify-center border transition-colors",
+                    "border-l-0 first:border-l",
                     m === mode
-                      ? "bg-foreground text-background"
-                      : "text-foreground has-hover:hover:bg-muted bg-transparent"
+                      ? "bg-foreground text-background border-foreground"
+                      : "text-foreground bg-transparent"
                   )}
                   aria-label={label}
                   aria-pressed={m === mode}

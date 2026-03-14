@@ -193,6 +193,13 @@
     scrollbar-gutter: stable;
   }
 
+  /* Prevent Radix / react-remove-scroll from locking scroll or adding padding */
+  body[data-scroll-locked] {
+    overflow: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+
   body {
     @apply bg-background text-foreground font-mono antialiased;
     font-size: 14px;
