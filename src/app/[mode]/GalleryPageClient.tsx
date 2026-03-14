@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 import { useSession, signOut } from "next-auth/react"
@@ -76,6 +76,20 @@ export function GalleryPageClient() {
   const [carouselOpen, setCarouselOpen] = useState(false)
   const [carouselIndex, setCarouselIndex] = useState(0)
   const [newPieceSheetOpen, setNewPieceSheetOpen] = useState(false)
+
+  // Measure the fixed header bar so we can add matching bottom padding
+  const headerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const update = () => {
+      document.documentElement.style.setProperty("--header-height", `${el.offsetHeight}px`)
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   // Derived: filtered image list passed to all gallery components
   const filteredImages = useMemo(() => filterImages(images, filter), [images, filter])
@@ -277,9 +291,12 @@ export function GalleryPageClient() {
 
   return (
     <TooltipProvider>
-      <div className="bg-background min-h-screen">
-        {/* Sticky header unit — Header + OptionsBar on the same row */}
-        <div className="bg-background sticky top-0 z-50 flex items-center justify-between max-md:flex-col max-md:items-stretch">
+      <div className="bg-background pt-gutter min-h-screen pb-[var(--header-height)]">
+        {/* Fixed bottom bar — Header + OptionsBar on the same row */}
+        <div
+          ref={headerRef}
+          className="bg-background fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between max-md:flex-col max-md:items-stretch"
+        >
           <Header />
           <OptionsBar
             mode={mode}

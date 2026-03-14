@@ -60,7 +60,7 @@ export function OptionsBar({
   onLogOut,
 }: OptionsBarProps) {
   return (
-    <div className="p-gutter flex items-center justify-end gap-2 max-md:flex-col max-md:items-stretch">
+    <div className="p-gutter flex items-center justify-end gap-2 max-md:flex-col max-md:items-stretch max-md:pt-0">
       {/* Row 1 (mobile only): image set selector — full width */}
       {/* On desktop this sits inline in the single flex row */}
       <Select value={filter} onValueChange={(v) => onFilterChange(v as ImageFilter)}>

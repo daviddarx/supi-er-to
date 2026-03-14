@@ -15,7 +15,7 @@ interface ClassicGalleryProps {
  */
 export default function ClassicGallery({ images, onImageClick }: ClassicGalleryProps) {
   return (
-    <main className="px-gutter gap-gutter max-md:pb-gutter mx-auto flex max-w-300 flex-col max-md:pt-0 md:gap-[10vh] md:pt-[20vh] md:pb-[10vh]">
+    <main className="px-gutter gap-gutter max-md:pb-gutter pt-gutter mx-auto flex max-w-300 flex-col max-md:pt-0 md:gap-[10vh] md:pt-[20vh] md:pb-[10vh]">
       {images.map((image, index) => (
         <LoadableImage
           key={image.id}
