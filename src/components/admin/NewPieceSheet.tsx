@@ -221,7 +221,9 @@ export function NewPieceSheet({ open, onOpenChange, onSuccess }: NewPieceSheetPr
     setPreviewUrl(null)
     setDate(getTodayISO())
     setTag("supi")
-    setSortOrder(0)
+    // Auto-increment sortOrder so consecutive uploads on the same day
+    // don't require manual adjustment.
+    setSortOrder((prev) => prev + 1)
     setError(null)
   }
 
