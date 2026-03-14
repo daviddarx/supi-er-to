@@ -91,11 +91,11 @@ export function OptionsBar({
                 <button
                   onClick={() => onModeChange(m)}
                   className={cn(
-                    "has-hover:hover:bg-muted has-hover:hover:border-muted flex h-10 w-10 items-center justify-center border transition-colors",
+                    "flex h-10 w-10 cursor-pointer items-center justify-center border transition-colors",
                     "border-l-0 first:border-l",
                     m === mode
                       ? "bg-foreground text-background border-foreground"
-                      : "text-foreground bg-transparent"
+                      : "text-foreground has-hover:hover:bg-muted bg-transparent"
                   )}
                   aria-label={label}
                   aria-pressed={m === mode}
@@ -116,7 +116,7 @@ export function OptionsBar({
             <TooltipTrigger asChild>
               <button
                 onClick={onDarkModeToggle}
-                className="has-hover:hover:bg-muted flex h-10 w-10 items-center justify-center border"
+                className="has-hover:hover:bg-muted flex h-10 w-10 cursor-pointer items-center justify-center border"
                 aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
               >
                 {isDarkMode ? <IconSun /> : <IconMoon />}
@@ -133,7 +133,7 @@ export function OptionsBar({
                 <TooltipTrigger asChild>
                   <button
                     onClick={onNewPiece}
-                    className="has-hover:hover:bg-muted flex h-10 w-10 items-center justify-center border"
+                    className="has-hover:hover:bg-muted flex h-10 w-10 cursor-pointer items-center justify-center border"
                     aria-label="New piece arrival"
                   >
                     <IconPlus />
@@ -148,7 +148,7 @@ export function OptionsBar({
                 <TooltipTrigger asChild>
                   <button
                     onClick={onLogOut}
-                    className="has-hover:hover:bg-muted flex h-10 w-10 items-center justify-center border"
+                    className="has-hover:hover:bg-muted flex h-10 w-10 cursor-pointer items-center justify-center border"
                     aria-label="Log out"
                   >
                     <IconLogOut />
