@@ -16,6 +16,8 @@ interface LoadableImageProps {
   onClick?: () => void
   /** Override the computed image src (e.g. a local blob URL for optimistic display). */
   overrideSrc?: string
+  /** When true, skip lazy loading — load immediately with high fetch priority (for LCP image). */
+  priority?: boolean
 }
 
 /**
@@ -35,13 +37,15 @@ export function LoadableImage({
   className,
   onClick,
   overrideSrc,
+  priority = false,
 }: LoadableImageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [isVisible, setIsVisible] = useState(false)
+  const [isVisible, setIsVisible] = useState(priority)
   const [isLoaded, setIsLoaded] = useState(false)
   const [hasError, setHasError] = useState(false)
 
   useEffect(() => {
+    if (priority) return
     const el = containerRef.current
     if (!el) return
 
@@ -58,7 +62,7 @@ export function LoadableImage({
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [priority])
 
   // Use native aspect-ratio syntax (W/H) — avoids pre-dividing to a decimal
   const aspectRatioStyle =
@@ -94,6 +98,8 @@ export function LoadableImage({
             isLoaded ? "opacity-100" : "opacity-0"
           )}
           draggable={false}
+          loading={priority ? "eager" : "lazy"}
+          {...(priority ? { fetchPriority: "high" } : {})}
         />
       )}
     </div>

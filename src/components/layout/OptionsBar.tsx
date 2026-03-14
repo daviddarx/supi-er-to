@@ -64,7 +64,10 @@ export function OptionsBar({
       {/* Row 1 (mobile only): image set selector — full width */}
       {/* On desktop this sits inline in the single flex row */}
       <Select value={filter} onValueChange={(v) => onFilterChange(v as ImageFilter)}>
-        <SelectTrigger className="h-10 min-w-[140px] bg-transparent text-sm max-md:w-full">
+        <SelectTrigger
+          className="h-10 min-w-[140px] bg-transparent text-sm max-md:w-full"
+          aria-label="Filter images"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent className="text-sm">

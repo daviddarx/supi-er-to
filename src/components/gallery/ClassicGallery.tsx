@@ -27,6 +27,7 @@ export default function ClassicGallery({ images, onImageClick }: ClassicGalleryP
           overrideSrc={image.previewSrc}
           width={image.width}
           height={image.height}
+          priority={index === 0}
         />
       ))}
     </main>
