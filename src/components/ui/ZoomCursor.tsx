@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { GalleryMode } from "@/types"
 
 interface ZoomCursorProps {
@@ -9,6 +9,11 @@ interface ZoomCursorProps {
 
 const LERP_FACTOR = 0.12
 const FADE_OUT_DELAY_MS = 100
+
+/** Returns true when the primary input is touch (no fine pointer). */
+function isTouchDevice() {
+  return window.matchMedia("(pointer: coarse)").matches
+}
 
 /**
  * Global zoom cursor — a solid circle with a "+" sign that follows the mouse
@@ -31,6 +36,12 @@ const FADE_OUT_DELAY_MS = 100
  *   Experimental mode and to re-initialize position when switching modes.
  */
 export function ZoomCursor({ mode }: ZoomCursorProps) {
+  const [isTouch, setIsTouch] = useState(false)
+
+  useEffect(() => {
+    setIsTouch(isTouchDevice())
+  }, [])
+
   // Direct DOM ref — manipulated via JS to avoid per-frame React renders
   const cursorRef = useRef<HTMLDivElement>(null)
 
@@ -47,6 +58,8 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
   const fadeOutTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    if (isTouch) return
+
     const el = cursorRef.current
     if (!el) return
 
@@ -124,7 +137,9 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
       // mode transitions.
       el.style.opacity = "0"
     }
-  }, [mode])
+  }, [mode, isTouch])
+
+  if (isTouch) return null
 
   return (
     <div
