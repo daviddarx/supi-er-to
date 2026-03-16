@@ -198,6 +198,7 @@ const ExplorativeImage = memo(function ExplorativeImage({
         width={image.width}
         height={image.height}
         onClick={handleClick}
+        eager
       />
     </div>
   )
@@ -446,6 +447,7 @@ export default function ExplorativeGallery({ images, onImageClick }: Explorative
           position: "absolute",
           transform: `translate(${wrappedX}px, ${wrappedY}px)`,
           willChange: "transform",
+          touchAction: "none",
         }}
         {...bind()}
       >

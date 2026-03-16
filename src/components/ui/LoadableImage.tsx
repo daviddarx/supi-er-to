@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react"
 import { getImageSrc, type ImageSize } from "@/lib/images"
 import { cn } from "@/lib/utils"
 
+/** Module-level cache of image srcs that have already loaded — survives remounts. */
+const loadedSrcs = new Set<string>()
+
 interface LoadableImageProps {
   id: string
   size: ImageSize
@@ -18,6 +21,8 @@ interface LoadableImageProps {
   overrideSrc?: string
   /** When true, skip lazy loading — load immediately with high fetch priority (for LCP image). */
   priority?: boolean
+  /** When true, skip IntersectionObserver — render img immediately (e.g. explorative canvas). */
+  eager?: boolean
 }
 
 /**
@@ -38,14 +43,18 @@ export function LoadableImage({
   onClick,
   overrideSrc,
   priority = false,
+  eager = false,
 }: LoadableImageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [isVisible, setIsVisible] = useState(priority)
-  const [isLoaded, setIsLoaded] = useState(false)
+  const src = overrideSrc ?? getImageSrc(id, size)
+  const alreadyCached = loadedSrcs.has(src)
+  const skipLazy = priority || eager || alreadyCached
+  const [isVisible, setIsVisible] = useState(skipLazy)
+  const [isLoaded, setIsLoaded] = useState(alreadyCached)
   const [hasError, setHasError] = useState(false)
 
   useEffect(() => {
-    if (priority) return
+    if (skipLazy) return
     const el = containerRef.current
     if (!el) return
 
@@ -62,7 +71,7 @@ export function LoadableImage({
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [priority])
+  }, [skipLazy])
 
   // Use native aspect-ratio syntax (W/H) — avoids pre-dividing to a decimal
   const aspectRatioStyle =
@@ -89,9 +98,12 @@ export function LoadableImage({
 
       {isVisible && !hasError && (
         <img
-          src={overrideSrc ?? getImageSrc(id, size)}
+          src={src}
           alt={alt}
-          onLoad={() => setIsLoaded(true)}
+          onLoad={() => {
+            loadedSrcs.add(src)
+            setIsLoaded(true)
+          }}
           onError={() => setHasError(true)}
           className={cn(
             "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
