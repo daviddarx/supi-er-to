@@ -60,32 +60,24 @@ export function OptionsBar({
   onLogOut,
 }: OptionsBarProps) {
   return (
-    <div className="p-gutter flex items-center justify-end gap-2 max-md:flex-col max-md:items-stretch max-md:pt-0">
-      {/* Row 1 (mobile only): image set selector — full width */}
-      {/* On desktop this sits inline in the single flex row */}
+    <div className="p-gutter flex flex-col items-stretch gap-2 pt-0 min-[390px]:flex-row min-[390px]:items-center min-[390px]:justify-between md:justify-end">
+      {/* Image set selector — full width on xs, auto width on small mobile, min-width on desktop */}
       <Select value={filter} onValueChange={(v) => onFilterChange(v as ImageFilter)}>
         <SelectTrigger
-          className="h-10 min-w-[140px] bg-transparent text-sm max-md:w-full"
+          className="h-10 !w-full min-w-[140px] bg-transparent min-[390px]:!w-auto min-[390px]:min-w-0"
           aria-label="Filter images"
         >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="text-sm">
-          <SelectItem value="all" className="text-sm">
-            Everything
-          </SelectItem>
-          <SelectItem value="supi" className="text-sm">
-            SUPI.ER.TO
-          </SelectItem>
-          <SelectItem value="bone" className="text-sm">
-            BONE
-          </SelectItem>
+        <SelectContent>
+          <SelectItem value="all">Everything</SelectItem>
+          <SelectItem value="supi">SUPI.ER.TO</SelectItem>
+          <SelectItem value="bone">BONE</SelectItem>
         </SelectContent>
       </Select>
 
-      {/* Row 2 (mobile): mode buttons left, dark mode + admin right */}
-      {/* On desktop: md:contents collapses the wrapper so children flow directly into the outer flex row */}
-      <div className="flex items-center justify-between gap-2 max-md:w-full md:contents">
+      {/* Mode buttons + dark mode + admin — on desktop md:contents collapses wrapper */}
+      <div className="flex w-full items-center justify-between gap-2 min-[390px]:w-auto min-[390px]:justify-start md:contents">
         {/* Gallery mode switcher */}
         <div className="flex items-center">
           {MODES.map(({ mode: m, icon, label }) => (

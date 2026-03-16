@@ -218,7 +218,11 @@
 
   body {
     @apply bg-background text-foreground font-mono antialiased;
-    font-size: 14px;
+    font-size: 12px;
+
+    @media (min-width: 768px) {
+      font-size: 14px;
+    }
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
   }
