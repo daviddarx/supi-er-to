@@ -191,13 +191,17 @@
 
   /* Prevent any library (Radix, YARL, react-remove-scroll, etc.) from locking
      scroll or adding padding to compensate for scrollbar removal.
-     overflow: auto !important keeps the scrollbar always visible, so there is
-     never a layout shift — no scrollbar-gutter trick needed. */
+     scrollbar-gutter: stable reserves scrollbar space even when content doesn't
+     scroll (e.g. explorative mode with fixed canvas), preventing layout shift. */
   html,
   body {
     overflow: auto !important;
     padding-right: 0 !important;
     margin-right: 0 !important;
+  }
+
+  html {
+    scrollbar-gutter: stable !important;
   }
 
   /* react-remove-scroll injects inline padding-right on position:fixed

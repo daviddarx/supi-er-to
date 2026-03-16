@@ -97,6 +97,20 @@ export default function GalleryPageClient() {
     return () => observer.disconnect()
   }, [])
 
+  // Measure scrollbar gutter width so the fixed header can reserve matching space.
+  // scrollbar-gutter: stable on html/body reserves space for the scrollbar even
+  // when content doesn't scroll, but fixed elements ignore it — they span the
+  // full viewport. This CSS variable lets the fixed header add matching padding.
+  useEffect(() => {
+    const measure = () => {
+      const gutter = window.innerWidth - document.documentElement.clientWidth
+      document.documentElement.style.setProperty("--scrollbar-width", `${gutter}px`)
+    }
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [])
+
   // Derived: filtered image list passed to all gallery components
   const filteredImages = useMemo(() => filterImages(images, filter), [images, filter])
 
@@ -301,7 +315,7 @@ export default function GalleryPageClient() {
         {/* Fixed bottom bar — Header + OptionsBar on the same row */}
         <div
           ref={headerRef}
-          className="no-scroll-compensate bg-background fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between max-md:flex-col max-md:items-stretch"
+          className="no-scroll-compensate bg-background fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between pr-[var(--scrollbar-width,0px)] max-md:flex-col max-md:items-stretch"
         >
           <Header />
           <OptionsBar
