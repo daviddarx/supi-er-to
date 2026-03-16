@@ -315,7 +315,7 @@ export default function GalleryPageClient() {
         {/* Fixed bottom bar — Header + OptionsBar on the same row */}
         <div
           ref={headerRef}
-          className="no-scroll-compensate bg-background fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between pr-[var(--scrollbar-width,0px)] max-md:flex-col max-md:items-stretch"
+          className="no-scroll-compensate bg-background after:bg-background fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between pr-[var(--scrollbar-width,0px)] after:absolute after:top-full after:right-0 after:left-0 after:h-25 after:content-[''] max-md:flex-col max-md:items-stretch"
         >
           <Header />
           <OptionsBar
