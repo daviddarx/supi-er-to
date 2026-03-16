@@ -62,7 +62,7 @@ function NavButton({ direction, btnClass }: NavButtonProps) {
     <button
       onClick={() => (direction === "prev" ? prev() : next())}
       className={cn(
-        "absolute z-50 max-md:bottom-4 md:top-1/2 md:-translate-y-1/2",
+        "absolute z-50 max-md:bottom-8 md:top-1/2 md:-translate-y-1/2",
         direction === "prev" ? "left-4" : "right-4",
         btnClass
       )}
