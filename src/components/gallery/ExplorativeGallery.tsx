@@ -10,8 +10,8 @@ import type { GalleryImage } from "@/types"
 // ---------------------------------------------------------------------------
 
 /**
- * Base virtual tile dimensions in pixels. These are scaled down proportionally
- * when the image set is a subset (filtered), so visual density stays constant.
+ * Base virtual tile dimensions in pixels at the reference viewport width.
+ * Scaled proportionally to viewport width so the visual ratio stays constant.
  */
 const BASE_TILE_W = 5000
 const BASE_TILE_H = 4000
@@ -23,10 +23,23 @@ const BASE_TILE_H = 4000
 const BASE_COUNT = 200
 
 /**
- * Minimum center-to-center distance between images at BASE_COUNT. Scaled with
- * sqrt(n / BASE_COUNT) so the constraint is proportional to the tile size.
+ * Base image width range (px) at the reference viewport width.
  */
-const BASE_MIN_SEPARATION = 250
+const BASE_IMG_WIDTH_MIN = 280
+const BASE_IMG_WIDTH_MAX = 420
+
+/**
+ * Viewport width (px) at which all base constants apply as-is.
+ * Everything scales linearly from this reference.
+ */
+const REFERENCE_VP_WIDTH = 2560
+
+/**
+ * Minimum separation expressed as a multiple of the average image width.
+ * This ties spacing directly to image size so gaps scale proportionally.
+ * At reference: avg image = 350px, separation = 250px → ratio ≈ 0.71.
+ */
+const SEPARATION_TO_IMG_RATIO = 250 / ((280 + 420) / 2)
 
 /**
  * 3×3 grid of tile offsets (in tile-units) surrounding the origin tile.
@@ -99,20 +112,34 @@ interface ExplorativeImageProps {
  * @param images - The filtered, sorted gallery images to lay out.
  * @returns Layouts array and effective tile dimensions.
  */
-function generateLayout(images: GalleryImage[]): GeneratedLayout {
+function generateLayout(
+  images: GalleryImage[],
+  vpEdge: number,
+  isPortrait: boolean
+): GeneratedLayout {
   const n = images.length
-  // Area scales linearly with n when linear dimensions scale with sqrt(n).
-  // Math.max(n, 1) guards against sqrt(0) = 0 producing a zero-sized tile.
-  const scale = Math.sqrt(Math.max(n, 1) / BASE_COUNT)
-  const tileW = Math.round(BASE_TILE_W * scale)
-  const tileH = Math.round(BASE_TILE_H * scale)
-  const minSeparation = BASE_MIN_SEPARATION * scale
+
+  // Uniform viewport scale — everything (tile, images, spacing) scales by this.
+  // Portrait screens get a 2× boost so images appear larger relative to the
+  // narrow width (vpEdge is already the longest edge).
+  const vpScale = (vpEdge / REFERENCE_VP_WIDTH) * (isPortrait ? 2 : 1)
+
+  // Count-based scale for filtered subsets (density stays constant).
+  const countScale = Math.sqrt(Math.max(n, 1) / BASE_COUNT)
+
+  const tileW = Math.round(BASE_TILE_W * countScale * vpScale)
+  const tileH = Math.round(BASE_TILE_H * countScale * vpScale)
+
+  const imgMin = Math.round(BASE_IMG_WIDTH_MIN * vpScale)
+  const imgMax = Math.round(BASE_IMG_WIDTH_MAX * vpScale)
+  const avgImg = (imgMin + imgMax) / 2
+  const minSeparation = avgImg * SEPARATION_TO_IMG_RATIO * countScale
 
   const layouts: ImageLayout[] = []
   const positions: Array<{ x: number; y: number }> = []
 
   for (const image of images) {
-    const width = Math.round(280 + Math.random() * 140) // 280–420 px
+    const width = Math.round(imgMin + Math.random() * (imgMax - imgMin))
     let x: number = Math.random() * tileW
     let y: number = Math.random() * tileH
     let attempts = 0
@@ -235,7 +262,15 @@ const ExplorativeImage = memo(function ExplorativeImage({
  */
 export default function ExplorativeGallery({ images, onImageClick }: ExplorativeGalleryProps) {
   // --- Layout (regenerated when images reference changes) ------------------
-  const { layouts, tileW, tileH } = useMemo(() => generateLayout(images), [images])
+  const vpEdge =
+    typeof window !== "undefined"
+      ? Math.max(window.innerWidth, window.innerHeight)
+      : REFERENCE_VP_WIDTH
+  const isPortrait = typeof window !== "undefined" ? window.innerHeight > window.innerWidth : false
+  const { layouts, tileW, tileH } = useMemo(
+    () => generateLayout(images, vpEdge, isPortrait),
+    [images, vpEdge, isPortrait]
+  )
 
   /** Fast id→GalleryImage lookup to avoid O(n) searches in render. */
   const imageMap = useMemo(() => Object.fromEntries(images.map((img) => [img.id, img])), [images])
