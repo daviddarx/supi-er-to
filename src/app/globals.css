@@ -279,13 +279,15 @@
    On mouseleave .is-hovering is removed immediately (rotation animates back
    because .is-animated still provides the transition), then .is-animated is
    removed after the animation completes. */
-.explorative-image.is-animated {
-  transition: transform 0.25s ease;
-}
+@media (hover: hover) {
+  .explorative-image.is-animated {
+    transition: transform 0.25s ease;
+  }
 
-.explorative-image.is-hovering {
-  transform: rotate(0deg) scale(1.2);
-  z-index: 10;
+  .explorative-image.is-hovering {
+    transform: rotate(0deg) scale(1.2);
+    z-index: 10;
+  }
 }
 
 .explorative-image img {

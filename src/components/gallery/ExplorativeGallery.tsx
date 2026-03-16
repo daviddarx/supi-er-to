@@ -185,19 +185,29 @@ const ExplorativeImage = memo(function ExplorativeImage({
   const handleClick = useCallback(() => onClick(layout.id), [onClick, layout.id])
   const hoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current)
-    e.currentTarget.classList.add("is-animated", "is-hovering")
-  }, [])
+  const hasHover = typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches
 
-  const handleMouseLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const el = e.currentTarget
-    // Remove transform override immediately — animation plays because
-    // .is-animated (with transition) is still present.
-    el.classList.remove("is-hovering")
-    // Remove transition class after the animation completes.
-    hoverTimer.current = setTimeout(() => el.classList.remove("is-animated"), HOVER_ANIMATION_MS)
-  }, [])
+  const handleMouseEnter = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!hasHover) return
+      if (hoverTimer.current) clearTimeout(hoverTimer.current)
+      e.currentTarget.classList.add("is-animated", "is-hovering")
+    },
+    [hasHover]
+  )
+
+  const handleMouseLeave = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!hasHover) return
+      const el = e.currentTarget
+      // Remove transform override immediately — animation plays because
+      // .is-animated (with transition) is still present.
+      el.classList.remove("is-hovering")
+      // Remove transition class after the animation completes.
+      hoverTimer.current = setTimeout(() => el.classList.remove("is-animated"), HOVER_ANIMATION_MS)
+    },
+    [hasHover]
+  )
 
   return (
     <div
