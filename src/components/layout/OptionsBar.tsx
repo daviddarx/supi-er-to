@@ -60,7 +60,7 @@ export function OptionsBar({
   onLogOut,
 }: OptionsBarProps) {
   return (
-    <div className="p-gutter flex flex-col items-stretch gap-2 pt-0 min-[390px]:flex-row min-[390px]:items-center min-[390px]:justify-between md:justify-end">
+    <div className="p-gutter flex flex-col items-stretch gap-2 max-md:pt-0 min-[390px]:flex-row min-[390px]:items-center min-[390px]:justify-between md:justify-end">
       {/* Image set selector — full width on xs, auto width on small mobile, min-width on desktop */}
       <Select value={filter} onValueChange={(v) => onFilterChange(v as ImageFilter)}>
         <SelectTrigger
