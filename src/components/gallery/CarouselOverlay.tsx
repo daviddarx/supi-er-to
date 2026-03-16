@@ -93,7 +93,7 @@ function CloseButton({ btnClass }: CloseButtonProps) {
   return (
     <button
       onClick={() => close()}
-      className={cn("absolute right-4 z-50 max-md:bottom-4 md:top-4", btnClass)}
+      className={cn("absolute top-4 right-4 z-50", btnClass)}
       aria-label="Close"
     >
       <IconClose strokeWidth={1} />
