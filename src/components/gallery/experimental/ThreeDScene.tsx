@@ -21,6 +21,9 @@ const WALL_GAP = BASE_BORDER * 3
 /** Slight inward rotation so walls face the viewer a bit more (radians). */
 const INWARD_ANGLE = 0.25
 
+/** Camera starting Z position. */
+export const CAMERA_START_Z = 8
+
 /** How much each scroll pixel moves the camera target Z position. */
 const SCROLL_SPEED = 0.025
 
@@ -34,7 +37,7 @@ const MOUSE_LOOK_AMOUNT = 0.15
 const MOUSE_LOOK_LERP = 0.04
 
 /** How far ahead (in world units) to show walls. */
-const VISIBLE_AHEAD = 200
+const VISIBLE_AHEAD = 400
 
 /** How far behind (in world units) to keep walls visible. */
 const VISIBLE_BEHIND = 30
@@ -108,7 +111,7 @@ export function ThreeDScene({ images, isDarkMode }: ThreeDSceneProps) {
   const wallRefs = useMemo(() => walls.map(() => createRef<WallHandle>()), [walls])
 
   // Camera scroll state — all in refs, no React state
-  const targetZ = useRef(12)
+  const targetZ = useRef(CAMERA_START_Z)
   const mouseX = useRef(0)
   const currentRotationY = useRef(0)
   const isTouch = useRef(false)
@@ -123,7 +126,7 @@ export function ThreeDScene({ images, isDarkMode }: ThreeDSceneProps) {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       targetZ.current -= e.deltaY * SCROLL_SPEED
-      targetZ.current = Math.min(12, targetZ.current)
+      targetZ.current = Math.min(CAMERA_START_Z, targetZ.current)
     }
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -167,8 +170,15 @@ export function ThreeDScene({ images, isDarkMode }: ThreeDSceneProps) {
         const loopOffset = Math.round((camZ - wallZ) / totalLength) * totalLength
         effectiveZ = wallZ + loopOffset
       }
-      const visible = effectiveZ <= frontZ && effectiveZ >= backZ
-      wallRefs[i].current?.setVisible(visible)
+      // Don't show walls at positive Z (before the corridor start)
+      const visible = effectiveZ <= frontZ && effectiveZ >= backZ && effectiveZ <= 0
+      const handle = wallRefs[i].current
+      if (handle) {
+        handle.setVisible(visible)
+        if (visible) {
+          handle.setPositionZ(effectiveZ)
+        }
+      }
     }
   })
 

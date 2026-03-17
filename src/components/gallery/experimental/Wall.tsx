@@ -22,6 +22,8 @@ const FADE_SPEED = 1.5
 export interface WallHandle {
   /** Set visibility imperatively — no React re-render. */
   setVisible: (v: boolean) => void
+  /** Reposition the wall along Z for infinite looping — no React re-render. */
+  setPositionZ: (z: number) => void
 }
 
 interface WallProps {
@@ -62,11 +64,15 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
       if (groupRef.current) {
         groupRef.current.visible = v
       }
-      // Reset fade when becoming visible
       if (v && !wasVisibleRef.current) {
         opacityRef.current = 0
       }
       wasVisibleRef.current = v
+    },
+    setPositionZ(z: number) {
+      if (groupRef.current) {
+        groupRef.current.position.z = z
+      }
     },
   }))
 

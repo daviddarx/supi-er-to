@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 import { Canvas } from "@react-three/fiber"
-import { ThreeDScene } from "./experimental/ThreeDScene"
+import { ThreeDScene, CAMERA_START_Z } from "./experimental/ThreeDScene"
 import type { GalleryImage } from "@/types"
 
 interface ExperimentalGalleryProps {
@@ -34,7 +34,7 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
      */
     <div style={{ position: "fixed", inset: 0 }}>
       <Canvas
-        camera={{ position: [0, 0, 12], fov: 50, near: 0.1, far: 5000 }}
+        camera={{ position: [0, 0, CAMERA_START_Z], fov: 50, near: 0.1, far: 5000 }}
         gl={{ antialias: true, alpha: false, logarithmicDepthBuffer: true }}
         style={{ background: bgColor }}
       >
