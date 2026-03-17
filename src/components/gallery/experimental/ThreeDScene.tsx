@@ -293,16 +293,14 @@ export function ThreeDScene({ images, isDarkMode }: ThreeDSceneProps) {
       const returnTarget = new THREE.Vector3(0, 0, targetZ.current)
       camera.position.lerp(returnTarget, FOCUS_LERP)
 
-      // Compute lookAt toward a point ahead in the corridor from current position
-      // This avoids quaternion slerp wobble by letting the rotation follow the position
-      const lookAhead = new THREE.Vector3(0, 0, camera.position.z - 20)
-      lookAtMatrix.current.lookAt(camera.position, lookAhead, camera.up)
-      lookAtQuat.current.setFromRotationMatrix(lookAtMatrix.current)
-      camera.quaternion.slerp(lookAtQuat.current, FOCUS_LERP)
+      // Direct euler interpolation toward forward-facing (avoids quaternion slerp wobble)
+      camera.rotation.x += (0 - camera.rotation.x) * FOCUS_LERP
+      camera.rotation.y += (0 - camera.rotation.y) * FOCUS_LERP
+      camera.rotation.z += (0 - camera.rotation.z) * FOCUS_LERP
 
-      // Check if position has converged
+      // Check if both position and rotation have converged
       const dist = camera.position.distanceTo(returnTarget)
-      if (dist < 0.1) {
+      if (dist < 0.1 && Math.abs(camera.rotation.y) < 0.01) {
         currentRotationY.current = 0
         isReturning.current = false
         camera.rotation.set(0, 0, 0)
