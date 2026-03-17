@@ -1,7 +1,9 @@
 "use client"
 
-import { useEffect } from "react"
+import { useRef, useEffect } from "react"
+import { useFrame } from "@react-three/fiber"
 import { useTexture } from "@react-three/drei"
+import * as THREE from "three"
 import type { GalleryImage } from "@/types"
 import { getImageSrc } from "@/lib/images"
 
@@ -14,6 +16,9 @@ export const WALL_HEIGHT = 8
 /** Depth of the wall cube in world units. */
 export const WALL_DEPTH = 1.5
 
+/** Fade-in speed (opacity units per second). */
+const FADE_SPEED = 1.5
+
 interface WallProps {
   image: GalleryImage
   isDarkMode: boolean
@@ -23,10 +28,6 @@ interface WallProps {
   depth?: number
 }
 
-/**
- * A 3D box (wall with depth) displaying a single gallery image on its front face.
- * The wall matches the image's aspect ratio with a uniform border around it.
- */
 export function Wall({
   image,
   isDarkMode,
@@ -36,6 +37,8 @@ export function Wall({
   depth = WALL_DEPTH,
 }: WallProps) {
   const texture = useTexture(getImageSrc(image.id, 1280))
+  const groupRef = useRef<THREE.Group>(null)
+  const opacityRef = useRef(0)
 
   useEffect(() => {
     return () => {
@@ -43,30 +46,45 @@ export function Wall({
     }
   }, [texture])
 
+  // Reset opacity on mount for fade-in
+  useEffect(() => {
+    opacityRef.current = 0
+  }, [])
+
+  useFrame((_, delta) => {
+    if (opacityRef.current >= 1) return
+    opacityRef.current = Math.min(1, opacityRef.current + delta * FADE_SPEED)
+    const group = groupRef.current
+    if (!group) return
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const mat = child.material as THREE.Material
+        mat.transparent = true
+        mat.opacity = opacityRef.current
+      }
+    })
+  })
+
   const aspect = image.width / image.height
 
-  // Image plane dimensions
   const imgHeight = WALL_HEIGHT
   const imgWidth = imgHeight * aspect
 
-  // Wall dimensions (image + border on each side)
   const wallWidth = imgWidth + border * 2
   const wallHeight = imgHeight + border * 2
 
   const wallColor = isDarkMode ? "#333333" : "#E8E8E8"
 
   return (
-    <group position={position} rotation={rotation}>
-      {/* Wall cube */}
+    <group ref={groupRef} position={position} rotation={rotation}>
       <mesh>
         <boxGeometry args={[wallWidth, wallHeight, depth]} />
-        <meshStandardMaterial color={wallColor} />
+        <meshStandardMaterial color={wallColor} transparent opacity={0} />
       </mesh>
 
-      {/* Image plane on the front face, offset half the depth + tiny epsilon */}
       <mesh position={[0, 0, depth / 2 + 0.15]}>
         <planeGeometry args={[imgWidth, imgHeight]} />
-        <meshBasicMaterial map={texture} />
+        <meshBasicMaterial map={texture} transparent opacity={0} />
       </mesh>
     </group>
   )
