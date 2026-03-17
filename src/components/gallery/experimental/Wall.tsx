@@ -6,7 +6,7 @@ import type { GalleryImage } from "@/types"
 import { getImageSrc } from "@/lib/images"
 
 /** Border width around the image on the wall face, in world units. */
-const BORDER = 0.6
+const BORDER = 1.2
 
 /** Target height of the wall in world units (width is derived from image aspect ratio). */
 const WALL_HEIGHT = 8
@@ -54,7 +54,7 @@ export function Wall({ image, isDarkMode, position = [0, 0, 0] }: WallProps) {
       </mesh>
 
       {/* Image plane on the front face, offset half the depth + tiny epsilon */}
-      <mesh position={[0, 0, WALL_DEPTH / 2 + 0.01]}>
+      <mesh position={[0, 0, WALL_DEPTH / 2 + 0.05]}>
         <planeGeometry args={[imgWidth, imgHeight]} />
         <meshBasicMaterial map={texture} />
       </mesh>
