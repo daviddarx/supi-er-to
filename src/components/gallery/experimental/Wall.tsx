@@ -33,6 +33,7 @@ interface WallProps {
   rotation?: [number, number, number]
   border?: number
   depth?: number
+  onClick?: () => void
 }
 
 export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
@@ -43,6 +44,7 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
     rotation = [0, 0, 0],
     border = BORDER,
     depth = WALL_DEPTH,
+    onClick,
   },
   ref
 ) {
@@ -103,7 +105,13 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
         <boxGeometry args={[wallWidth, wallHeight, depth]} />
         <meshStandardMaterial color={wallColor} transparent opacity={0} />
       </mesh>
-      <mesh position={[0, 0, depth / 2 + 0.15]}>
+      <mesh
+        position={[0, 0, depth / 2 + 0.15]}
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick?.()
+        }}
+      >
         <planeGeometry args={[imgWidth, imgHeight]} />
         <meshBasicMaterial map={texture} transparent opacity={0} />
       </mesh>
