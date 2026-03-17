@@ -17,7 +17,7 @@ export interface RooftopStructure {
 }
 
 /**
- * Full configuration for a single building in the procedural city.
+ * Full configuration for a single building in the procedural 3D scene.
  * Each building hosts exactly one graffiti piece via its rooftop structure.
  */
 export interface BuildingConfig {
@@ -33,7 +33,7 @@ export interface BuildingConfig {
 
 /**
  * Camera destination for focusing on a specific graffiti piece.
- * Generated once per city layout alongside BuildingConfig.
+ * Generated once per scene layout alongside BuildingConfig.
  */
 export interface GraffitiTarget {
   /** Matches BuildingConfig.id */

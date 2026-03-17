@@ -15,18 +15,18 @@ const JITTER = 5
 const CAMERA_DISTANCE = 18
 
 /**
- * Generates a random procedural city layout for the given image set.
+ * Generates a random procedural 3D scene layout for the given image set.
  *
  * Each image gets exactly one building with a rooftop stairhouse whose graffiti
  * wall displays that image as a texture. The grid is square-ish (ceil(sqrt(N)) columns).
  *
  * Call this once per image set (inside useMemo) — it uses Math.random() so the
- * city layout varies on each page load intentionally.
+ * scene layout varies on each page load intentionally.
  *
  * @param images - Filtered + sorted gallery images to lay out
  * @returns buildings array and matching graffitiTargets array (same length, same order)
  */
-export function generateCity(images: GalleryImage[]): {
+export function generateScene(images: GalleryImage[]): {
   buildings: BuildingConfig[]
   graffitiTargets: GraffitiTarget[]
 } {
