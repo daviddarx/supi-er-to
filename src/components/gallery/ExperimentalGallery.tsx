@@ -35,7 +35,7 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
     <div style={{ position: "fixed", inset: 0 }}>
       <Canvas
         camera={{ position: [0, 80, 80], fov: 50, near: 0.1, far: 2000 }}
-        gl={{ antialias: true, alpha: false }}
+        gl={{ antialias: true, alpha: false, logarithmicDepthBuffer: true }}
         style={{ background: bgColor }}
       >
         {/*
