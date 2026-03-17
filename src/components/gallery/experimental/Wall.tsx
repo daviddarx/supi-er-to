@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, forwardRef, useImperativeHandle } from "react"
 import { useFrame } from "@react-three/fiber"
 import { useTexture } from "@react-three/drei"
 import * as THREE from "three"
@@ -19,6 +19,11 @@ export const WALL_DEPTH = 1.5
 /** Fade-in speed (opacity units per second). */
 const FADE_SPEED = 1.5
 
+export interface WallHandle {
+  /** Set visibility imperatively — no React re-render. */
+  setVisible: (v: boolean) => void
+}
+
 interface WallProps {
   image: GalleryImage
   isDarkMode: boolean
@@ -28,17 +33,22 @@ interface WallProps {
   depth?: number
 }
 
-export function Wall({
-  image,
-  isDarkMode,
-  position = [0, 0, 0],
-  rotation = [0, 0, 0],
-  border = BORDER,
-  depth = WALL_DEPTH,
-}: WallProps) {
+export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
+  {
+    image,
+    isDarkMode,
+    position = [0, 0, 0],
+    rotation = [0, 0, 0],
+    border = BORDER,
+    depth = WALL_DEPTH,
+  },
+  ref
+) {
   const texture = useTexture(getImageSrc(image.id, 1280))
   const groupRef = useRef<THREE.Group>(null)
   const opacityRef = useRef(0)
+  const visibleRef = useRef(true)
+  const wasVisibleRef = useRef(false)
 
   useEffect(() => {
     return () => {
@@ -46,13 +56,22 @@ export function Wall({
     }
   }, [texture])
 
-  // Reset opacity on mount for fade-in
-  useEffect(() => {
-    opacityRef.current = 0
-  }, [])
+  useImperativeHandle(ref, () => ({
+    setVisible(v: boolean) {
+      visibleRef.current = v
+      if (groupRef.current) {
+        groupRef.current.visible = v
+      }
+      // Reset fade when becoming visible
+      if (v && !wasVisibleRef.current) {
+        opacityRef.current = 0
+      }
+      wasVisibleRef.current = v
+    },
+  }))
 
   useFrame((_, delta) => {
-    if (opacityRef.current >= 1) return
+    if (!visibleRef.current || opacityRef.current >= 1) return
     opacityRef.current = Math.min(1, opacityRef.current + delta * FADE_SPEED)
     const group = groupRef.current
     if (!group) return
@@ -66,13 +85,10 @@ export function Wall({
   })
 
   const aspect = image.width / image.height
-
   const imgHeight = WALL_HEIGHT
   const imgWidth = imgHeight * aspect
-
   const wallWidth = imgWidth + border * 2
   const wallHeight = imgHeight + border * 2
-
   const wallColor = isDarkMode ? "#333333" : "#E8E8E8"
 
   return (
@@ -81,11 +97,10 @@ export function Wall({
         <boxGeometry args={[wallWidth, wallHeight, depth]} />
         <meshStandardMaterial color={wallColor} transparent opacity={0} />
       </mesh>
-
       <mesh position={[0, 0, depth / 2 + 0.15]}>
         <planeGeometry args={[imgWidth, imgHeight]} />
         <meshBasicMaterial map={texture} transparent opacity={0} />
       </mesh>
     </group>
   )
-}
+})
