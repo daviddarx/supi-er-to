@@ -6,18 +6,19 @@ import type { GalleryImage } from "@/types"
 import { getImageSrc } from "@/lib/images"
 
 /** Border width around the image on the wall face, in world units. */
-const BORDER = 1.2
+export const BORDER = 1.2
 
 /** Target height of the wall in world units (width is derived from image aspect ratio). */
-const WALL_HEIGHT = 8
+export const WALL_HEIGHT = 8
 
 /** Depth of the wall cube in world units. */
-const WALL_DEPTH = 1.5
+export const WALL_DEPTH = 1.5
 
 interface WallProps {
   image: GalleryImage
   isDarkMode: boolean
   position?: [number, number, number]
+  rotation?: [number, number, number]
   border?: number
   depth?: number
 }
@@ -30,6 +31,7 @@ export function Wall({
   image,
   isDarkMode,
   position = [0, 0, 0],
+  rotation = [0, 0, 0],
   border = BORDER,
   depth = WALL_DEPTH,
 }: WallProps) {
@@ -54,7 +56,7 @@ export function Wall({
   const wallColor = isDarkMode ? "#333333" : "#E8E8E8"
 
   return (
-    <group position={position}>
+    <group position={position} rotation={rotation}>
       {/* Wall cube */}
       <mesh>
         <boxGeometry args={[wallWidth, wallHeight, depth]} />
