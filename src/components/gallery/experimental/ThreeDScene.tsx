@@ -293,30 +293,31 @@ export function ThreeDScene({ images, isDarkMode }: ThreeDSceneProps) {
       const returnTarget = new THREE.Vector3(0, 0, targetZ.current)
       camera.position.lerp(returnTarget, FOCUS_LERP)
 
-      // Direct euler interpolation toward forward-facing (avoids quaternion slerp wobble)
+      // Lerp Y toward the current mouse-look target so there's no jump when corridor mode takes over
+      const mouseTarget = isTouch.current ? 0 : -mouseX.current * MOUSE_LOOK_AMOUNT
       camera.rotation.x += (0 - camera.rotation.x) * FOCUS_LERP
-      camera.rotation.y += (0 - camera.rotation.y) * FOCUS_LERP
+      camera.rotation.y += (mouseTarget - camera.rotation.y) * FOCUS_LERP
       camera.rotation.z += (0 - camera.rotation.z) * FOCUS_LERP
 
       // Check if position and all rotation axes have converged
       const dist = camera.position.distanceTo(returnTarget)
       const rotConverged =
         Math.abs(camera.rotation.x) < 0.005 &&
-        Math.abs(camera.rotation.y) < 0.005 &&
+        Math.abs(camera.rotation.y - mouseTarget) < 0.005 &&
         Math.abs(camera.rotation.z) < 0.005
       if (dist < 0.1 && rotConverged) {
-        currentRotationY.current = 0
+        currentRotationY.current = camera.rotation.y
         isReturning.current = false
       }
     } else {
       // Normal corridor mode
       camera.position.z += (targetZ.current - camera.position.z) * CAMERA_LERP
 
-      // if (!isTouch.current) {
-      //   const targetRotation = -mouseX.current * MOUSE_LOOK_AMOUNT
-      //   currentRotationY.current += (targetRotation - currentRotationY.current) * MOUSE_LOOK_LERP
-      //   camera.rotation.y = currentRotationY.current
-      // }
+      if (!isTouch.current) {
+        const targetRotation = -mouseX.current * MOUSE_LOOK_AMOUNT
+        currentRotationY.current += (targetRotation - currentRotationY.current) * MOUSE_LOOK_LERP
+        camera.rotation.y = currentRotationY.current
+      }
     }
 
     // Visibility culling — always runs
