@@ -371,11 +371,13 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isFocusing.current) {
+        stopAutoDrift()
         unfocus()
         return
       }
 
       if (!isFocusing.current || focusedWall.current === null) return
+      stopAutoDrift()
 
       const currentIndex = focusedWall.current
       const wall = walls[currentIndex]
