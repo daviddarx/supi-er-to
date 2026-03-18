@@ -38,12 +38,14 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
       return
     }
 
+    let stale = false
     countRef.current = 0
     const total = images.length
 
     for (const image of images) {
       const url = getImageSrc(image.id, 1280)
       textureLoader.load(url, () => {
+        if (stale) return
         countRef.current++
         const count = countRef.current
 
@@ -52,7 +54,7 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
           textRef.current.textContent = `${count}/${total}`
         }
         if (ringRef.current) {
-          const progress = count / total
+          const progress = Math.min(count / total, 1)
           ringRef.current.style.strokeDashoffset = String(CIRCUMFERENCE * (1 - progress))
         }
 
@@ -60,6 +62,10 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
           setReady(true)
         }
       })
+    }
+
+    return () => {
+      stale = true
     }
   }, [images])
 
