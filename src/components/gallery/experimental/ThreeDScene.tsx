@@ -21,6 +21,12 @@ const WALL_GAP = BASE_BORDER * 3
 /** Slight inward rotation so walls face the viewer a bit more (radians). */
 const INWARD_ANGLE = 0.25
 
+/** Z-axis rotation increment per row (radians). ~5° per row. */
+const TWIST_PER_ROW = (5 * Math.PI) / 180
+
+/** How far ahead (in world units) the camera twist targets, to better align with visible rows. */
+const TWIST_LOOK_AHEAD = 15
+
 /** Camera starting Z position. */
 export const CAMERA_START_Z = 8
 
@@ -58,6 +64,7 @@ interface WallConfig {
   image: GalleryImage
   position: [number, number, number]
   rotation: [number, number, number]
+  twistAngle: number
   border: number
   depth: number
   z: number
@@ -80,12 +87,17 @@ function computeLayout(images: GalleryImage[]) {
     const imgWidth = WALL_HEIGHT * aspect
     const wallWidth = imgWidth + border * 2
 
+    // Row index: images 0,1 = row 0; 2,3 = row 1; etc.
+    const row = Math.floor(i / 2)
+    const twistAngle = -row * TWIST_PER_ROW
+
     if (isLeft) {
       const z = -(leftZ + wallWidth / 2)
       walls.push({
         image,
         position: [-CORRIDOR_WIDTH / 2, 0, z],
         rotation: [0, Math.PI / 2 - INWARD_ANGLE, 0],
+        twistAngle,
         border,
         depth,
         z,
@@ -98,6 +110,7 @@ function computeLayout(images: GalleryImage[]) {
         image,
         position: [CORRIDOR_WIDTH / 2, 0, z],
         rotation: [0, -Math.PI / 2 + INWARD_ANGLE, 0],
+        twistAngle,
         border,
         depth,
         z,
@@ -107,15 +120,47 @@ function computeLayout(images: GalleryImage[]) {
     }
   }
 
+  // Build sorted twist map (Z → twistAngle) for camera interpolation.
+  // One entry per row, using the average Z of the left/right wall in that row.
+  const rowMap = new Map<number, { zSum: number; count: number; twist: number }>()
+  for (const w of walls) {
+    const row = Math.round(w.twistAngle / -TWIST_PER_ROW)
+    const entry = rowMap.get(row) || { zSum: 0, count: 0, twist: w.twistAngle }
+    entry.zSum += w.z
+    entry.count++
+    rowMap.set(row, entry)
+  }
+  // Sorted by Z descending (0 first, most negative last)
+  const twistMap = Array.from(rowMap.values())
+    .map((e) => ({ z: e.zSum / e.count, twist: e.twist }))
+    .sort((a, b) => b.z - a.z)
+
   const totalLength = Math.max(leftZ, rightZ)
-  return { walls, totalLength }
+  return { walls, totalLength, twistMap }
 }
 
 export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
   const { scene, camera, gl } = useThree()
   scene.background = new THREE.Color(isDarkMode ? "#0a0a0a" : "#ffffff")
 
-  const { walls, totalLength } = useMemo(() => computeLayout(images), [images])
+  const { walls, totalLength, twistMap } = useMemo(() => computeLayout(images), [images])
+
+  /** Interpolate the twist angle for a given Z position from the twist map. */
+  const getTwistAtZ = (z: number): number => {
+    if (twistMap.length === 0) return 0
+    // Before first row
+    if (z >= twistMap[0].z) return twistMap[0].twist
+    // After last row
+    if (z <= twistMap[twistMap.length - 1].z) return twistMap[twistMap.length - 1].twist
+    // Find the two surrounding entries and lerp
+    for (let i = 0; i < twistMap.length - 1; i++) {
+      if (z <= twistMap[i].z && z >= twistMap[i + 1].z) {
+        const t = (z - twistMap[i].z) / (twistMap[i + 1].z - twistMap[i].z)
+        return twistMap[i].twist + t * (twistMap[i + 1].twist - twistMap[i].twist)
+      }
+    }
+    return 0
+  }
 
   // Track wall texture instantiation — signal parent when all walls are ready
   const readyCountRef = useRef(0)
@@ -158,9 +203,12 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
   const isFocusing = useRef(false)
   const isReturning = useRef(false)
 
-  // Scratch objects for lookAt quaternion computation
+  // Scratch objects for quaternion computation
   const lookAtMatrix = useRef(new THREE.Matrix4())
   const lookAtQuat = useRef(new THREE.Quaternion())
+  const twistQuat = useRef(new THREE.Quaternion())
+  const mouseLookQuat = useRef(new THREE.Quaternion())
+  const corridorQuat = useRef(new THREE.Quaternion())
 
   const focusOnWall = (wallIndex: number) => {
     const wall = walls[wallIndex]
@@ -185,11 +233,21 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
     const distH = (imgWidth / 2 / (Math.tan(fovRad / 2) * screenAspect)) * FOCUS_PADDING
     const focusDistance = Math.max(distV, distH)
 
-    // Compute camera position: in front of the wall face
+    // Compute camera position: in front of the wall face, rotated by twist
+    const twist = wall.twistAngle
     const wallX = wall.position[0]
-    const offset = wall.isLeft ? focusDistance : -focusDistance
-    focusTarget.current.set(wallX + offset, 0, effectiveZ)
-    focusLookAt.current.set(wallX, 0, effectiveZ)
+    const wallY = wall.position[1]
+    // Wall center in twisted space
+    const cosT = Math.cos(twist)
+    const sinT = Math.sin(twist)
+    const centerX = wallX * cosT - wallY * sinT
+    const centerY = wallX * sinT + wallY * cosT
+    // Camera offset direction (inward toward center, also twisted)
+    const offsetDir = wall.isLeft ? focusDistance : -focusDistance
+    const camX = centerX + offsetDir * cosT
+    const camY = centerY + offsetDir * sinT
+    focusTarget.current.set(camX, camY, effectiveZ)
+    focusLookAt.current.set(centerX, centerY, effectiveZ)
 
     // Save return position only when entering focus from corridor
     if (!isFocusing.current) {
@@ -309,20 +367,19 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
       const returnTarget = new THREE.Vector3(0, 0, targetZ.current)
       camera.position.lerp(returnTarget, FOCUS_LERP)
 
-      // Lerp Y toward the current mouse-look target so there's no jump when corridor mode takes over
+      // Build target quaternion same as corridor mode
       const mouseTarget = isTouch.current ? 0 : -mouseX.current * MOUSE_LOOK_AMOUNT
-      camera.rotation.x += (0 - camera.rotation.x) * FOCUS_LERP
-      camera.rotation.y += (mouseTarget - camera.rotation.y) * FOCUS_LERP
-      camera.rotation.z += (0 - camera.rotation.z) * FOCUS_LERP
+      const returnTwist = getTwistAtZ(targetZ.current)
+      twistQuat.current.setFromAxisAngle(new THREE.Vector3(0, 0, 1), returnTwist)
+      mouseLookQuat.current.setFromAxisAngle(new THREE.Vector3(0, 1, 0), mouseTarget)
+      corridorQuat.current.copy(twistQuat.current).multiply(mouseLookQuat.current)
+      camera.quaternion.slerp(corridorQuat.current, FOCUS_LERP)
 
-      // Check if position and all rotation axes have converged
+      // Check if position and rotation have converged
       const dist = camera.position.distanceTo(returnTarget)
-      const rotConverged =
-        Math.abs(camera.rotation.x) < 0.005 &&
-        Math.abs(camera.rotation.y - mouseTarget) < 0.005 &&
-        Math.abs(camera.rotation.z) < 0.005
-      if (dist < 0.1 && rotConverged) {
-        currentRotationY.current = camera.rotation.y
+      const rotDist = camera.quaternion.angleTo(corridorQuat.current)
+      if (dist < 0.1 && rotDist < 0.005) {
+        currentRotationY.current = mouseTarget
         isReturning.current = false
       }
     } else {
@@ -332,8 +389,17 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
       if (!isTouch.current) {
         const targetRotation = -mouseX.current * MOUSE_LOOK_AMOUNT
         currentRotationY.current += (targetRotation - currentRotationY.current) * MOUSE_LOOK_LERP
-        camera.rotation.y = currentRotationY.current
       }
+
+      // Build camera orientation via quaternions:
+      // 1. Twist around Z axis (corridor spiral)
+      // 2. Mouse look around Y axis in the twisted local frame
+      const targetTwist = getTwistAtZ(camera.position.z - TWIST_LOOK_AHEAD)
+      twistQuat.current.setFromAxisAngle(new THREE.Vector3(0, 0, 1), targetTwist)
+      mouseLookQuat.current.setFromAxisAngle(new THREE.Vector3(0, 1, 0), currentRotationY.current)
+      // Twist first, then mouse look in local space: twist * mouseLook
+      corridorQuat.current.copy(twistQuat.current).multiply(mouseLookQuat.current)
+      camera.quaternion.slerp(corridorQuat.current, CAMERA_LERP)
     }
 
     // Visibility culling — always runs
@@ -370,19 +436,21 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
       <directionalLight position={[-60, 10, -40]} intensity={isDarkMode ? 0.2 : 0.1} />
 
       {walls.map((w, i) => (
-        <Suspense key={i} fallback={null}>
-          <Wall
-            ref={wallRefs[i]}
-            image={w.image}
-            isDarkMode={isDarkMode}
-            position={w.position}
-            rotation={w.rotation}
-            border={w.border}
-            depth={w.depth}
-            onClick={() => handleWallClick(i)}
-            onReady={handleWallReady}
-          />
-        </Suspense>
+        <group key={i} rotation={[0, 0, w.twistAngle]}>
+          <Suspense fallback={null}>
+            <Wall
+              ref={wallRefs[i]}
+              image={w.image}
+              isDarkMode={isDarkMode}
+              position={w.position}
+              rotation={w.rotation}
+              border={w.border}
+              depth={w.depth}
+              onClick={() => handleWallClick(i)}
+              onReady={handleWallReady}
+            />
+          </Suspense>
+        </group>
       ))}
     </>
   )
