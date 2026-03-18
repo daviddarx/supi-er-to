@@ -242,9 +242,9 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
         // When facing a right wall the camera looks right, so ArrowLeft = shallower (prev).
         const goDeeper =
           (e.key === "ArrowRight" && wall.isLeft) || (e.key === "ArrowLeft" && !wall.isLeft)
-        const nextPos = goDeeper
-          ? (posInSide + 1) % sameIndices.length
-          : (posInSide - 1 + sameIndices.length) % sameIndices.length
+        // Block going shallower past the first wall (toward corridor entrance)
+        if (!goDeeper && posInSide === 0) return
+        const nextPos = goDeeper ? (posInSide + 1) % sameIndices.length : posInSide - 1
         focusOnWall(sameIndices[nextPos])
       } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault()

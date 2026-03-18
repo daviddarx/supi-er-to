@@ -209,6 +209,24 @@ export function IconArrowRight({ className, strokeWidth = 1 }: IconProps) {
   )
 }
 
+export function IconArrowDown({ className, strokeWidth = 1 }: IconProps) {
+  return (
+    <svg
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M3.5 8.5L12 17L20.5 8.5" />
+    </svg>
+  )
+}
+
 export function IconUpload({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg
