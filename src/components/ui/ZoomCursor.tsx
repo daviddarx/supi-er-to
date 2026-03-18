@@ -28,7 +28,7 @@ function isTouchDevice() {
  * on every animation frame. The rAF loop runs continuously even while invisible
  * so there is no position jump when re-appearing.
  *
- * Not visible in Experimental mode (no carousel / no image hover there).
+ * Also visible in Experimental mode (hover on 3D wall image planes).
  * Not shown on touch devices — touch never fires mousemove so the cursor
  * simply stays at opacity:0 forever.
  *
@@ -72,12 +72,6 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
     // Sync the DOM transform immediately so it matches the refs — prevents a
     // visual jump from translate(0,0) to the centre position on first hover.
     el.style.transform = `translate(${cx + 20}px, ${cy + 20}px)`
-
-    // Experimental mode has no carousel images — keep cursor permanently hidden.
-    if (mode === "experimental") {
-      el.style.opacity = "0"
-      return
-    }
 
     // ── Mouse tracking ──────────────────────────────────────────────────────
     const onMouseMove = (e: MouseEvent) => {

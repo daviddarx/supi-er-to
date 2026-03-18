@@ -104,17 +104,24 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
 
   return (
     <group ref={groupRef} position={position} rotation={rotation}>
-      <mesh>
-        <boxGeometry args={[wallWidth, wallHeight, depth]} />
-        <meshStandardMaterial color={wallColor} transparent opacity={1} />
-      </mesh>
       <mesh
-        position={[0, 0, depth / 2 + 0.15]}
         onClick={(e) => {
           e.stopPropagation()
           onClick?.()
         }}
+        onPointerOver={(e) => {
+          e.stopPropagation()
+          window.dispatchEvent(new Event("image-hover-start"))
+        }}
+        onPointerOut={(e) => {
+          e.stopPropagation()
+          window.dispatchEvent(new Event("image-hover-end"))
+        }}
       >
+        <boxGeometry args={[wallWidth, wallHeight, depth]} />
+        <meshStandardMaterial color={wallColor} transparent opacity={1} />
+      </mesh>
+      <mesh position={[0, 0, depth / 2 + 0.15]}>
         <planeGeometry args={[imgWidth, imgHeight]} />
         <meshBasicMaterial map={texture} transparent opacity={1} />
       </mesh>
