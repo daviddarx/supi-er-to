@@ -200,6 +200,7 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
     focusedWall.current = wallIndex
     isFocusing.current = true
     isReturning.current = false
+    window.dispatchEvent(new Event("image-zoomed-in"))
   }
 
   const handleWallClick = (wallIndex: number) => {
@@ -212,6 +213,7 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
 
   const unfocus = () => {
     if (!isFocusing.current) return
+    window.dispatchEvent(new Event("image-zoomed-out"))
     // Update scroll target to match current camera Z so corridor resumes nearby
     targetZ.current = camera.position.z
     isFocusing.current = false

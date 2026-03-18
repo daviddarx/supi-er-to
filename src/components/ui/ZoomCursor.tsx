@@ -42,8 +42,9 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
     setIsTouch(isTouchDevice())
   }, [])
 
-  // Direct DOM ref — manipulated via JS to avoid per-frame React renders
+  // Direct DOM refs — manipulated via JS to avoid per-frame React renders
   const cursorRef = useRef<HTMLDivElement>(null)
+  const verticalLineRef = useRef<SVGLineElement>(null)
 
   // Raw mouse position (updated on every mousemove).
   // Initialised to viewport centre; the DOM transform is set to match in the
@@ -97,8 +98,18 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
       }, FADE_OUT_DELAY_MS)
     }
 
+    // ── Zoom state (toggle "+" to "−") ────────────────────────────────────
+    const onZoomIn = () => {
+      if (verticalLineRef.current) verticalLineRef.current.style.display = "none"
+    }
+    const onZoomOut = () => {
+      if (verticalLineRef.current) verticalLineRef.current.style.display = ""
+    }
+
     window.addEventListener("image-hover-start", onHoverStart)
     window.addEventListener("image-hover-end", onHoverEnd)
+    window.addEventListener("image-zoomed-in", onZoomIn)
+    window.addEventListener("image-zoomed-out", onZoomOut)
 
     // ── Lerp animation loop ──────────────────────────────────────────────────
     // Runs continuously regardless of visibility so position always tracks the
@@ -119,6 +130,8 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
       window.removeEventListener("mousemove", onMouseMove)
       window.removeEventListener("image-hover-start", onHoverStart)
       window.removeEventListener("image-hover-end", onHoverEnd)
+      window.removeEventListener("image-zoomed-in", onZoomIn)
+      window.removeEventListener("image-zoomed-out", onZoomOut)
       if (rafHandle.current !== null) {
         cancelAnimationFrame(rafHandle.current)
         rafHandle.current = null
@@ -187,8 +200,9 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
           strokeWidth={1.5}
           strokeLinecap="round"
         />
-        {/* "+" vertical arm — inverted (background colour) */}
+        {/* "+" vertical arm — hidden when zoomed in to show "−" */}
         <line
+          ref={verticalLineRef}
           x1="16"
           y1="9"
           x2="16"
