@@ -34,6 +34,7 @@ interface WallProps {
   border?: number
   depth?: number
   onClick?: () => void
+  onReady?: () => void
 }
 
 export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
@@ -45,16 +46,18 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
     border = BORDER,
     depth = WALL_DEPTH,
     onClick,
+    onReady,
   },
   ref
 ) {
   const texture = useTexture(getImageSrc(image.id, 1280))
   const groupRef = useRef<THREE.Group>(null)
-  const opacityRef = useRef(0)
+  const opacityRef = useRef(1)
   const visibleRef = useRef(true)
-  const wasVisibleRef = useRef(false)
+  const wasVisibleRef = useRef(true)
 
   useEffect(() => {
+    onReady?.()
     return () => {
       texture.dispose()
     }
@@ -103,7 +106,7 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
     <group ref={groupRef} position={position} rotation={rotation}>
       <mesh>
         <boxGeometry args={[wallWidth, wallHeight, depth]} />
-        <meshStandardMaterial color={wallColor} transparent opacity={0} />
+        <meshStandardMaterial color={wallColor} transparent opacity={1} />
       </mesh>
       <mesh
         position={[0, 0, depth / 2 + 0.15]}
@@ -113,7 +116,7 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
         }}
       >
         <planeGeometry args={[imgWidth, imgHeight]} />
-        <meshBasicMaterial map={texture} transparent opacity={0} />
+        <meshBasicMaterial map={texture} transparent opacity={1} />
       </mesh>
     </group>
   )

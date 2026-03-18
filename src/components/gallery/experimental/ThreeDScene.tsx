@@ -51,6 +51,7 @@ const FOCUS_LERP = 0.04
 interface ThreeDSceneProps {
   images: GalleryImage[]
   isDarkMode: boolean
+  onReady?: () => void
 }
 
 interface WallConfig {
@@ -110,11 +111,24 @@ function computeLayout(images: GalleryImage[]) {
   return { walls, totalLength }
 }
 
-export function ThreeDScene({ images, isDarkMode }: ThreeDSceneProps) {
+export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
   const { scene, camera, gl } = useThree()
   scene.background = new THREE.Color(isDarkMode ? "#0a0a0a" : "#f8f8f8")
 
   const { walls, totalLength } = useMemo(() => computeLayout(images), [images])
+
+  // Track wall texture instantiation — signal parent when all walls are ready
+  const readyCountRef = useRef(0)
+  const sceneReadyRef = useRef(false)
+  const handleWallReady = useMemo(() => {
+    return () => {
+      readyCountRef.current++
+      if (!sceneReadyRef.current && readyCountRef.current >= walls.length) {
+        sceneReadyRef.current = true
+        onReady?.()
+      }
+    }
+  }, [walls.length, onReady])
 
   // Precompute per-side wall index arrays (corridor order) for arrow-key navigation
   const { leftIndices, rightIndices } = useMemo(() => {
@@ -359,6 +373,7 @@ export function ThreeDScene({ images, isDarkMode }: ThreeDSceneProps) {
             border={w.border}
             depth={w.depth}
             onClick={() => handleWallClick(i)}
+            onReady={handleWallReady}
           />
         </Suspense>
       ))}

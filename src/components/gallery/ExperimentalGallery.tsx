@@ -1,8 +1,7 @@
 "use client"
 
-import { Suspense, useState, useEffect, useRef } from "react"
+import { Suspense, useState, useEffect, useRef, useCallback } from "react"
 import { Canvas } from "@react-three/fiber"
-import * as THREE from "three"
 import { ThreeDScene, CAMERA_START_Z } from "./experimental/ThreeDScene"
 import { getImageSrc } from "@/lib/images"
 import type { GalleryImage } from "@/types"
@@ -12,8 +11,6 @@ interface ExperimentalGalleryProps {
   isDarkMode: boolean
 }
 
-const textureLoader = new THREE.TextureLoader()
-
 const SPINNER_SIZE = 80
 const STROKE_WIDTH = 2
 const RADIUS = (SPINNER_SIZE - STROKE_WIDTH) / 2
@@ -21,7 +18,9 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 export default function ExperimentalGallery({ images, isDarkMode }: ExperimentalGalleryProps) {
   const bgColor = isDarkMode ? "#0a0a0a" : "#f8f8f8"
-  const [ready, setReady] = useState(false)
+  const [imagesPreloaded, setImagesPreloaded] = useState(false)
+  const [sceneReady, setSceneReady] = useState(false)
+  const handleSceneReady = useCallback(() => setSceneReady(true), [])
 
   // Direct DOM refs — bypass React for smooth updates during heavy loading
   const ringRef = useRef<SVGCircleElement>(null)
@@ -34,7 +33,8 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
 
   useEffect(() => {
     if (images.length === 0) {
-      setReady(true)
+      setImagesPreloaded(true)
+      setSceneReady(true)
       return
     }
 
@@ -42,14 +42,16 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
     countRef.current = 0
     const total = images.length
 
+    // Preload as vanilla Image objects — no Three.js overhead, keeps main thread free
+    // for smooth loader UI updates. useTexture will then hit browser cache instantly.
     for (const image of images) {
       const url = getImageSrc(image.id, 1280)
-      textureLoader.load(url, () => {
+      const img = new Image()
+      img.onload = img.onerror = () => {
         if (stale) return
         countRef.current++
         const count = countRef.current
 
-        // Direct DOM mutations — no React, no rAF needed
         if (textRef.current) {
           textRef.current.textContent = `${count}/${total}`
         }
@@ -59,9 +61,10 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
         }
 
         if (count >= total) {
-          setReady(true)
+          setImagesPreloaded(true)
         }
-      })
+      }
+      img.src = url
     }
 
     return () => {
@@ -71,16 +74,27 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>
-      {!ready && (
+      <div
+        ref={loaderRef}
+        style={{
+          position: "fixed",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 10,
+          background: bgColor,
+          opacity: sceneReady ? 0 : 1,
+          pointerEvents: sceneReady ? "none" : "auto",
+          transition: "opacity 0.6s ease",
+        }}
+      >
         <div
-          ref={loaderRef}
           style={{
-            position: "fixed",
-            inset: 0,
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
-            zIndex: 10,
+            gap: "16px",
           }}
         >
           <div style={{ position: "relative", width: SPINNER_SIZE, height: SPINNER_SIZE }}>
@@ -122,20 +136,38 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
               0/{images.length}
             </div>
           </div>
+          <div
+            style={{
+              fontFamily: "var(--font-dm-mono), monospace",
+              fontSize: "11px",
+              color,
+            }}
+          >
+            {imagesPreloaded ? "Initializing scene..." : "Loading images..."}
+          </div>
+        </div>
+      </div>
+
+      {imagesPreloaded && (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            opacity: sceneReady ? 1 : 0,
+            transition: "opacity 0.6s ease",
+          }}
+        >
+          <Canvas
+            camera={{ position: [0, 0, CAMERA_START_Z], fov: 50, near: 0.1, far: 5000 }}
+            gl={{ antialias: true, alpha: false, logarithmicDepthBuffer: true }}
+            style={{ background: bgColor }}
+          >
+            <Suspense fallback={null}>
+              <ThreeDScene images={images} isDarkMode={isDarkMode} onReady={handleSceneReady} />
+            </Suspense>
+          </Canvas>
         </div>
       )}
-
-      <div style={{ width: "100%", height: "100%", opacity: ready ? 1 : 0 }}>
-        <Canvas
-          camera={{ position: [0, 0, CAMERA_START_Z], fov: 50, near: 0.1, far: 5000 }}
-          gl={{ antialias: true, alpha: false, logarithmicDepthBuffer: true }}
-          style={{ background: bgColor }}
-        >
-          <Suspense fallback={null}>
-            <ThreeDScene images={images} isDarkMode={isDarkMode} />
-          </Suspense>
-        </Canvas>
-      </div>
     </div>
   )
 }
