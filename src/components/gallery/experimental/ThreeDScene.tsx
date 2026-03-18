@@ -298,22 +298,25 @@ export function ThreeDScene({ images, isDarkMode }: ThreeDSceneProps) {
       camera.rotation.y += (0 - camera.rotation.y) * FOCUS_LERP
       camera.rotation.z += (0 - camera.rotation.z) * FOCUS_LERP
 
-      // Check if both position and rotation have converged
+      // Check if position and all rotation axes have converged
       const dist = camera.position.distanceTo(returnTarget)
-      if (dist < 0.1 && Math.abs(camera.rotation.y) < 0.01) {
+      const rotConverged =
+        Math.abs(camera.rotation.x) < 0.005 &&
+        Math.abs(camera.rotation.y) < 0.005 &&
+        Math.abs(camera.rotation.z) < 0.005
+      if (dist < 0.1 && rotConverged) {
         currentRotationY.current = 0
         isReturning.current = false
-        camera.rotation.set(0, 0, 0)
       }
     } else {
       // Normal corridor mode
       camera.position.z += (targetZ.current - camera.position.z) * CAMERA_LERP
 
-      if (!isTouch.current) {
-        const targetRotation = -mouseX.current * MOUSE_LOOK_AMOUNT
-        currentRotationY.current += (targetRotation - currentRotationY.current) * MOUSE_LOOK_LERP
-        camera.rotation.y = currentRotationY.current
-      }
+      // if (!isTouch.current) {
+      //   const targetRotation = -mouseX.current * MOUSE_LOOK_AMOUNT
+      //   currentRotationY.current += (targetRotation - currentRotationY.current) * MOUSE_LOOK_LERP
+      //   camera.rotation.y = currentRotationY.current
+      // }
     }
 
     // Visibility culling — always runs
