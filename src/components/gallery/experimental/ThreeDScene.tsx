@@ -70,7 +70,7 @@ const FOCUS_PADDING = 1.3
 const FOCUS_LERP = 0.04
 
 /** Auto-drift speed: world units per second the camera moves into the corridor. */
-const AUTO_DRIFT_SPEED = 3
+const AUTO_DRIFT_SPEED = 1.5
 
 /** Seconds of inactivity before auto-drift resumes after user interaction. */
 const AUTO_DRIFT_RESUME_DELAY = 10
@@ -192,6 +192,10 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
       if (!sceneReadyRef.current && readyCountRef.current >= walls.length) {
         sceneReadyRef.current = true
         onReady?.()
+        // Enable interaction detection after loader fade-out completes
+        setTimeout(() => {
+          interactionsEnabled.current = true
+        }, 1200)
       }
     }
   }, [walls.length, onReady])
@@ -229,8 +233,10 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
   // Auto-drift state
   const isAutoDrifting = useRef(true)
   const autoDriftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const interactionsEnabled = useRef(false)
 
   const stopAutoDrift = () => {
+    if (!interactionsEnabled.current) return // Ignore interactions during loading + fade-in
     isAutoDrifting.current = false
     if (autoDriftTimer.current) clearTimeout(autoDriftTimer.current)
     autoDriftTimer.current = setTimeout(() => {
