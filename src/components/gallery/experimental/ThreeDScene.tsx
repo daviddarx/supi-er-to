@@ -401,7 +401,7 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
 
       // Build target quaternion same as corridor mode
       const mouseTarget = isTouch.current ? 0 : -mouseX.current * MOUSE_LOOK_AMOUNT
-      const returnTwist = getTwistAtZ(targetZ.current)
+      const returnTwist = getTwistAtZ(targetZ.current - TWIST_LOOK_AHEAD)
       twistQuat.current.setFromAxisAngle(new THREE.Vector3(0, 0, 1), returnTwist)
       mouseLookQuat.current.setFromAxisAngle(new THREE.Vector3(0, 1, 0), mouseTarget)
       corridorQuat.current.copy(twistQuat.current).multiply(mouseLookQuat.current)
