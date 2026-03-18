@@ -54,6 +54,12 @@ const FOCUS_PADDING = 1.3
 /** Lerp speed for focus/unfocus camera animation. */
 const FOCUS_LERP = 0.04
 
+/** Auto-drift speed: world units per second the camera moves into the corridor. */
+const AUTO_DRIFT_SPEED = 3
+
+/** Seconds of inactivity before auto-drift resumes after user interaction. */
+const AUTO_DRIFT_RESUME_DELAY = 10
+
 interface ThreeDSceneProps {
   images: GalleryImage[]
   isDarkMode: boolean
@@ -193,6 +199,22 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
   const mouseX = useRef(0)
   const currentRotationY = useRef(0)
   const isTouch = useRef(false)
+
+  // Auto-drift state
+  const isAutoDrifting = useRef(true)
+  const autoDriftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const stopAutoDrift = () => {
+    isAutoDrifting.current = false
+    if (autoDriftTimer.current) clearTimeout(autoDriftTimer.current)
+    autoDriftTimer.current = setTimeout(() => {
+      // If focused, unfocus first — the returning animation will finish, then auto-drift starts
+      if (isFocusing.current) {
+        unfocus()
+      }
+      isAutoDrifting.current = true
+    }, AUTO_DRIFT_RESUME_DELAY * 1000)
+  }
 
   // Focus state — all in refs for imperative animation
   const focusedWall = useRef<number | null>(null)
@@ -368,22 +390,31 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       if (isFocusing.current) return // Disable scroll when focused
+      stopAutoDrift()
       targetZ.current -= e.deltaY * SCROLL_SPEED
       targetZ.current = Math.min(CAMERA_START_Z, targetZ.current)
     }
 
     const handleMouseMove = (e: MouseEvent) => {
       if (isTouch.current) return
+      stopAutoDrift()
       mouseX.current = (e.clientX / window.innerWidth) * 2 - 1
+    }
+
+    const handleClick = () => {
+      stopAutoDrift()
     }
 
     canvas.addEventListener("wheel", handleWheel, { passive: false })
     window.addEventListener("mousemove", handleMouseMove)
     canvas.addEventListener("touchstart", handleTouchStart, { once: true })
+    canvas.addEventListener("click", handleClick)
     return () => {
       canvas.removeEventListener("wheel", handleWheel)
       window.removeEventListener("mousemove", handleMouseMove)
       canvas.removeEventListener("touchstart", handleTouchStart)
+      canvas.removeEventListener("click", handleClick)
+      if (autoDriftTimer.current) clearTimeout(autoDriftTimer.current)
     }
   }, [gl])
 
@@ -416,12 +447,17 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
       }
     } else {
       // Normal corridor mode
-      camera.position.z += (targetZ.current - camera.position.z) * CAMERA_LERP
-
-      if (!isTouch.current) {
+      if (isAutoDrifting.current) {
+        // Auto-drift: smoothly move deeper into the corridor
+        targetZ.current -= AUTO_DRIFT_SPEED * (1 / 60)
+        // Reset mouse look toward center during auto-drift
+        currentRotationY.current += (0 - currentRotationY.current) * MOUSE_LOOK_LERP
+      } else if (!isTouch.current) {
         const targetRotation = -mouseX.current * MOUSE_LOOK_AMOUNT
         currentRotationY.current += (targetRotation - currentRotationY.current) * MOUSE_LOOK_LERP
       }
+
+      camera.position.z += (targetZ.current - camera.position.z) * CAMERA_LERP
 
       // Build camera orientation via quaternions:
       // 1. Twist around Z axis (corridor spiral)
