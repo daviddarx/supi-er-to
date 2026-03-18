@@ -231,17 +231,17 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
           <kbd style={kbdStyle(isDarkMode)}>
             <IconArrowRight className="size-3" />
           </kbd>
-          <span style={{ marginLeft: "2px" }}>Navigate</span>
+          <span style={{ marginLeft: "6px" }}>Navigate</span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
           <kbd style={kbdStyle(isDarkMode)}>
             <IconArrowDown className="size-3" />
           </kbd>
-          <span style={{ marginLeft: "2px" }}>Switch side</span>
+          <span style={{ marginLeft: "6px" }}>Switch side</span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
           <kbd style={{ ...kbdStyle(isDarkMode), fontSize: "10px", padding: "2px 6px" }}>Esc</kbd>
-          <span style={{ marginLeft: "2px" }}>Close</span>
+          <span style={{ marginLeft: "6px" }}>Close</span>
         </span>
       </div>
     </>

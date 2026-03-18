@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect, useCallback } from "react"
 import { cn } from "@/lib/utils"
 import {
   Select,
@@ -16,6 +17,8 @@ import {
   IconExperimental,
   IconSun,
   IconMoon,
+  IconFullscreen,
+  IconFullscreenExit,
   IconPlus,
   IconLogOut,
 } from "@/components/ui/icons"
@@ -107,20 +110,7 @@ export function OptionsBar({
 
         {/* Right-side controls: dark mode + admin */}
         <div className="flex items-center gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={onDarkModeToggle}
-                className="has-hover:hover:bg-muted flex h-10 w-10 cursor-pointer items-center justify-center border"
-                aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-              >
-                {isDarkMode ? <IconSun /> : <IconMoon />}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-xs">
-              {isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-            </TooltipContent>
-          </Tooltip>
+          <FullscreenAndDarkMode isDarkMode={isDarkMode} onDarkModeToggle={onDarkModeToggle} />
 
           {isAdmin && (
             <div className="flex items-center">
@@ -158,5 +148,63 @@ export function OptionsBar({
         </div>
       </div>
     </div>
+  )
+}
+
+function FullscreenAndDarkMode({
+  isDarkMode,
+  onDarkModeToggle,
+}: {
+  isDarkMode: boolean
+  onDarkModeToggle: () => void
+}) {
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener("fullscreenchange", onChange)
+    return () => document.removeEventListener("fullscreenchange", onChange)
+  }, [])
+
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+    } else {
+      document.documentElement.requestFullscreen()
+    }
+  }, [])
+
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={onDarkModeToggle}
+            className="has-hover:hover:bg-muted flex h-10 w-10 cursor-pointer items-center justify-center border"
+            aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDarkMode ? <IconSun /> : <IconMoon />}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          {isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+        </TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={toggleFullscreen}
+            className="has-hover:hover:bg-muted hidden h-10 w-10 cursor-pointer items-center justify-center border md:flex"
+            aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? <IconFullscreenExit /> : <IconFullscreen />}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+        </TooltipContent>
+      </Tooltip>
+    </>
   )
 }

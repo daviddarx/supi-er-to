@@ -154,6 +154,27 @@ export function IconFullscreen({ className, strokeWidth = 1 }: IconProps) {
   )
 }
 
+export function IconFullscreenExit({ className, strokeWidth = 1 }: IconProps) {
+  return (
+    <svg
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M4 10.5H10.5V4" />
+      <path d="M20 10.5H13.5V4" />
+      <path d="M4 13.5H10.5V20" />
+      <path d="M20 13.5H13.5V20" />
+    </svg>
+  )
+}
+
 export function IconClose({ className, strokeWidth = 1 }: IconProps) {
   return (
     <svg

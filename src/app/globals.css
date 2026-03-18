@@ -204,6 +204,10 @@
     scrollbar-gutter: stable !important;
   }
 
+  html:fullscreen {
+    scrollbar-gutter: auto !important;
+  }
+
   /* react-remove-scroll injects inline padding-right on position:fixed
      elements to compensate for scrollbar removal. Block it. */
   .no-scroll-compensate {
