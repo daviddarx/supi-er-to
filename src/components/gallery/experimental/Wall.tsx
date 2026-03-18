@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, forwardRef, useImperativeHandle } from "react"
+import { useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from "react"
 import { useFrame } from "@react-three/fiber"
 import { useTexture } from "@react-three/drei"
 import * as THREE from "three"
@@ -100,14 +100,24 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
   const imgWidth = imgHeight * aspect
   const wallWidth = imgWidth + border * 2
   const wallHeight = imgHeight + border * 2
-  const wallColor = isDarkMode ? "#333333" : "#E8E8E8"
+  // Dark mode: MeshStandardMaterial reacts to scene lighting for face shading
+  // Light mode: flat MeshBasicMaterial, no lighting — plain grey (~black 5% opacity on white)
+  const wallMaterial = useMemo(() => {
+    if (isDarkMode) {
+      const mat = new THREE.MeshBasicMaterial({ color: "#161616", transparent: true })
+      mat.toneMapped = false
+      return mat
+    }
+    const mat = new THREE.MeshBasicMaterial({ color: "#f7f7f7", transparent: true })
+    mat.toneMapped = false
+    return mat
+  }, [isDarkMode])
 
   return (
     <group ref={groupRef} position={position} rotation={rotation}>
       {/* Wall border — invisible to raycasting so it doesn't block the image plane */}
-      <mesh raycast={() => null}>
+      <mesh raycast={() => null} material={wallMaterial as any}>
         <boxGeometry args={[wallWidth, wallHeight, depth]} />
-        <meshStandardMaterial color={wallColor} transparent opacity={1} />
       </mesh>
       <mesh
         position={[0, 0, depth / 2 + 0.15]}

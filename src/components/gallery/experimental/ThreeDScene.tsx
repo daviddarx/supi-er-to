@@ -113,7 +113,7 @@ function computeLayout(images: GalleryImage[]) {
 
 export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
   const { scene, camera, gl } = useThree()
-  scene.background = new THREE.Color(isDarkMode ? "#0a0a0a" : "#f8f8f8")
+  scene.background = new THREE.Color(isDarkMode ? "#0a0a0a" : "#ffffff")
 
   const { walls, totalLength } = useMemo(() => computeLayout(images), [images])
 
@@ -361,8 +361,13 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
 
   return (
     <>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[50, 100, 50]} intensity={0.8} />
+      <ambientLight intensity={isDarkMode ? 0.15 : 1.4} />
+      {/* Top light */}
+      <directionalLight position={[0, 100, 0]} intensity={isDarkMode ? 1.0 : 0.5} />
+      {/* Front-right light — differentiates front and side faces */}
+      <directionalLight position={[80, 30, 60]} intensity={isDarkMode ? 0.45 : 0.3} />
+      {/* Left fill light */}
+      <directionalLight position={[-60, 10, -40]} intensity={isDarkMode ? 0.2 : 0.1} />
 
       {walls.map((w, i) => (
         <Suspense key={i} fallback={null}>

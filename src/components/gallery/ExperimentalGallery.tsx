@@ -34,7 +34,7 @@ const RADIUS = (SPINNER_SIZE - STROKE_WIDTH) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 export default function ExperimentalGallery({ images, isDarkMode }: ExperimentalGalleryProps) {
-  const bgColor = isDarkMode ? "#0a0a0a" : "#f8f8f8"
+  const bgColor = isDarkMode ? "#0a0a0a" : "#ffffff"
   const [imagesPreloaded, setImagesPreloaded] = useState(false)
   const [sceneReady, setSceneReady] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
