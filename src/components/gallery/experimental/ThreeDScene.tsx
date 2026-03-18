@@ -27,8 +27,23 @@ const TWIST_PER_ROW = (5 * Math.PI) / 180
 /** How far ahead (in world units) the camera twist targets, to better align with visible rows. */
 const TWIST_LOOK_AHEAD = 15
 
-/** Camera starting Z position. */
-export const CAMERA_START_Z = 8
+/** Camera starting Z at the reference aspect ratio (2560/1229). */
+const BASE_START_Z = 8
+/** Reference aspect ratio where BASE_START_Z was tuned. */
+const REF_ASPECT = 2560 / 1229
+
+/**
+ * Compute starting Z so the horizontal coverage matches the reference aspect.
+ * At narrower viewports the camera pulls back to keep the same world width visible.
+ */
+export function computeStartZ(aspect: number): number {
+  if (aspect >= REF_ASPECT) return BASE_START_Z
+  // Horizontal FOV scales with aspect. To see the same width, push camera back proportionally.
+  return BASE_START_Z * (REF_ASPECT / aspect)
+}
+
+/** Fallback for Canvas initial position (will be corrected on first frame). */
+export const CAMERA_START_Z = BASE_START_Z
 
 /** How much each scroll pixel moves the camera target Z position. */
 const SCROLL_SPEED = 0.025
@@ -194,8 +209,19 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
 
   const wallRefs = useMemo(() => walls.map(() => createRef<WallHandle>()), [walls])
 
+  // Compute aspect-aware start Z and set camera on mount
+  const cam = camera as THREE.PerspectiveCamera
+  const startZ = useMemo(() => computeStartZ(cam.aspect), [cam.aspect])
+  const startZRef = useRef(startZ)
+  startZRef.current = startZ
+
+  // Set camera position on first render / aspect change
+  useEffect(() => {
+    camera.position.z = startZ
+  }, [startZ])
+
   // Camera scroll state
-  const targetZ = useRef(CAMERA_START_Z)
+  const targetZ = useRef(startZ)
   const mouseX = useRef(0)
   const currentRotationY = useRef(0)
   const isTouch = useRef(false)
@@ -392,7 +418,7 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
       if (isFocusing.current) return // Disable scroll when focused
       stopAutoDrift()
       targetZ.current -= e.deltaY * SCROLL_SPEED
-      targetZ.current = Math.min(CAMERA_START_Z, targetZ.current)
+      targetZ.current = Math.min(startZRef.current, targetZ.current)
     }
 
     const handleMouseMove = (e: MouseEvent) => {
