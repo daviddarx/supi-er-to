@@ -16,7 +16,7 @@ import type { GalleryImage } from "@/types"
 const CORRIDOR_WIDTH = 14
 
 /** Gap between consecutive same-side walls, approximately matching border width. */
-const WALL_GAP = BASE_BORDER * 5
+const WALL_GAP = BASE_BORDER * 4
 
 /** Slight inward rotation so walls face the viewer a bit more (radians). */
 const INWARD_ANGLE = 0.25
@@ -49,7 +49,7 @@ const VISIBLE_AHEAD = 400
 const VISIBLE_BEHIND = 30
 
 /** Small padding factor so the image doesn't touch the screen edges. */
-const FOCUS_PADDING = 1.15
+const FOCUS_PADDING = 1.3
 
 /** Lerp speed for focus/unfocus camera animation. */
 const FOCUS_LERP = 0.04
@@ -234,24 +234,52 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
     const distH = (imgWidth / 2 / (Math.tan(fovRad / 2) * screenAspect)) * FOCUS_PADDING
     const focusDistance = Math.max(distV, distH)
 
-    // Compute camera position: in front of the wall face, rotated by twist
+    // Compute camera position along the wall's actual face normal (accounts for INWARD_ANGLE + twist)
     const twist = wall.twistAngle
-    const wallX = wall.position[0]
-    const wallY = wall.position[1]
-    // Wall center in twisted space
     const cosT = Math.cos(twist)
     const sinT = Math.sin(twist)
+
+    // Wall center in world space (twist applied to local position)
+    const wallX = wall.position[0]
+    const wallY = wall.position[1]
     const centerX = wallX * cosT - wallY * sinT
     const centerY = wallX * sinT + wallY * cosT
-    // Camera offset direction (inward toward center, also twisted)
-    const offsetDir = wall.isLeft ? focusDistance : -focusDistance
-    const camX = centerX + offsetDir * cosT
-    const camY = centerY + offsetDir * sinT
-    focusTarget.current.set(camX, camY, effectiveZ)
-    focusLookAt.current.set(centerX, centerY, effectiveZ)
 
-    // Precompute the target quaternion with twisted up vector — avoids Z-roll wobble during slerp
+    // Face normal in local space: wall's Y rotation puts front face (+Z) toward viewer
+    // Left wall: rotation Y = π/2 - IA → normal = (cos(IA), 0, sin(IA))
+    // Right wall: rotation Y = -π/2 + IA → normal = (-cos(IA), 0, sin(IA))
+    const cosIA = Math.cos(INWARD_ANGLE)
+    const sinIA = Math.sin(INWARD_ANGLE)
+    const localNX = wall.isLeft ? cosIA : -cosIA
+    const localNZ = sinIA
+
+    // Apply twist rotation (around Z) to the normal's X,Y components
+    const normalX = localNX * cosT
+    const normalY = localNX * sinT
+    const normalZ = localNZ
+
+    // Offset to compensate for header covering top of viewport:
+    // shift camera + lookAt down (in twisted local "up") by half the header's angular share
+    const headerPx = parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--header-height") || "0"
+    )
+    const headerFraction = headerPx / window.innerHeight
+    // Convert header fraction to world-space offset at focus distance
+    const visibleHeight = 2 * Math.tan(fovRad / 2) * focusDistance
+    const headerOffset = (headerFraction * visibleHeight) / 2
+    // Twisted up direction
     const twistedUp = new THREE.Vector3(-sinT, cosT, 0)
+
+    // Camera = wall center + normal * focusDistance, shifted down by header offset
+    const focusCamX = centerX + normalX * focusDistance - twistedUp.x * headerOffset
+    const focusCamY = centerY + normalY * focusDistance - twistedUp.y * headerOffset
+    const focusCamZ = effectiveZ + normalZ * focusDistance
+    focusTarget.current.set(focusCamX, focusCamY, focusCamZ)
+    focusLookAt.current.set(
+      centerX - twistedUp.x * headerOffset,
+      centerY - twistedUp.y * headerOffset,
+      effectiveZ
+    )
     lookAtMatrix.current.lookAt(focusTarget.current, focusLookAt.current, twistedUp)
     focusQuat.current.setFromRotationMatrix(lookAtMatrix.current)
 
