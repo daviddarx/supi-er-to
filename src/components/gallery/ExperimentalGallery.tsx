@@ -29,7 +29,7 @@ function kbdStyle(isDark: boolean): React.CSSProperties {
 }
 
 const SPINNER_SIZE = 80
-const STROKE_WIDTH = 2
+const STROKE_WIDTH = 1
 const RADIUS = (SPINNER_SIZE - STROKE_WIDTH) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
