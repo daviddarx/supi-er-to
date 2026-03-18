@@ -16,7 +16,7 @@ import type { GalleryImage } from "@/types"
 const CORRIDOR_WIDTH = 14
 
 /** Gap between consecutive same-side walls, approximately matching border width. */
-const WALL_GAP = BASE_BORDER * 3
+const WALL_GAP = BASE_BORDER * 5
 
 /** Slight inward rotation so walls face the viewer a bit more (radians). */
 const INWARD_ANGLE = 0.25
@@ -198,6 +198,7 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
   const focusedWall = useRef<number | null>(null)
   const focusTarget = useRef(new THREE.Vector3())
   const focusLookAt = useRef(new THREE.Vector3())
+  const focusQuat = useRef(new THREE.Quaternion())
   const returnPosition = useRef(new THREE.Vector3())
   const returnRotationY = useRef(0)
   const isFocusing = useRef(false)
@@ -248,6 +249,11 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
     const camY = centerY + offsetDir * sinT
     focusTarget.current.set(camX, camY, effectiveZ)
     focusLookAt.current.set(centerX, centerY, effectiveZ)
+
+    // Precompute the target quaternion with twisted up vector — avoids Z-roll wobble during slerp
+    const twistedUp = new THREE.Vector3(-sinT, cosT, 0)
+    lookAtMatrix.current.lookAt(focusTarget.current, focusLookAt.current, twistedUp)
+    focusQuat.current.setFromRotationMatrix(lookAtMatrix.current)
 
     // Save return position only when entering focus from corridor
     if (!isFocusing.current) {
@@ -358,10 +364,8 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
       // Animate camera to focused wall
       camera.position.lerp(focusTarget.current, FOCUS_LERP)
 
-      // Smoothly rotate to look at the wall
-      lookAtMatrix.current.lookAt(camera.position, focusLookAt.current, camera.up)
-      lookAtQuat.current.setFromRotationMatrix(lookAtMatrix.current)
-      camera.quaternion.slerp(lookAtQuat.current, FOCUS_LERP)
+      // Slerp toward precomputed quaternion — stable Z-roll, no wobble
+      camera.quaternion.slerp(focusQuat.current, FOCUS_LERP)
     } else if (isReturning.current) {
       // Animate back to corridor center
       const returnTarget = new THREE.Vector3(0, 0, targetZ.current)
