@@ -363,7 +363,9 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     focusedWall.current = wallIndex
     isFocusing.current = true
     isReturning.current = false
-    window.dispatchEvent(new Event("image-zoomed-in"))
+    window.dispatchEvent(
+      new CustomEvent("image-zoomed-in", { detail: { isLeft: walls[wallIndex].isLeft } })
+    )
   }
 
   const handleWallClick = (wallIndex: number) => {

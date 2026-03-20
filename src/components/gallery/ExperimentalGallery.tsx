@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo, type MouseEvent } from "react"
 import { Canvas } from "@react-three/fiber"
 import { ThreeDScene, CAMERA_START_Z } from "./experimental/ThreeDScene"
 import { IconArrowLeft, IconArrowRight, IconArrowDown } from "@/components/ui/icons"
@@ -28,6 +28,18 @@ function kbdStyle(isDark: boolean): React.CSSProperties {
   }
 }
 
+function simulateKey(key: string) {
+  return (e: MouseEvent) => {
+    e.stopPropagation()
+    window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
+  }
+}
+
+const kbdClickStyle: React.CSSProperties = {
+  cursor: "pointer",
+  pointerEvents: "auto",
+}
+
 const SPINNER_SIZE = 80
 const STROKE_WIDTH = 1
 const RADIUS = (SPINNER_SIZE - STROKE_WIDTH) / 2
@@ -46,11 +58,16 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
   const [imagesPreloaded, setImagesPreloaded] = useState(false)
   const [sceneReady, setSceneReady] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
+  const [focusedIsLeft, setFocusedIsLeft] = useState(true)
   const handleSceneReady = useCallback(() => setSceneReady(true), [])
 
   // Listen for focus/unfocus events from ThreeDScene
   useEffect(() => {
-    const onZoomIn = () => setIsFocused(true)
+    const onZoomIn = (e: Event) => {
+      setIsFocused(true)
+      const detail = (e as CustomEvent).detail
+      if (detail) setFocusedIsLeft(detail.isLeft)
+    }
     const onZoomOut = () => setIsFocused(false)
     window.addEventListener("image-zoomed-in", onZoomIn)
     window.addEventListener("image-zoomed-out", onZoomOut)
@@ -240,23 +257,51 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
         }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          <kbd style={kbdStyle(isDarkMode)}>
+          <kbd
+            style={{ ...kbdStyle(isDarkMode), ...kbdClickStyle }}
+            onClick={simulateKey("ArrowLeft")}
+          >
             <IconArrowLeft className="size-3" />
           </kbd>
-          <kbd style={kbdStyle(isDarkMode)}>
+          <kbd
+            style={{ ...kbdStyle(isDarkMode), ...kbdClickStyle }}
+            onClick={simulateKey("ArrowRight")}
+          >
             <IconArrowRight className="size-3" />
           </kbd>
-          <span style={{ marginLeft: "6px" }}>Navigate</span>
+          <span
+            style={{ marginLeft: "6px", ...kbdClickStyle }}
+            onClick={simulateKey(focusedIsLeft ? "ArrowRight" : "ArrowLeft")}
+          >
+            Navigate
+          </span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          <kbd style={kbdStyle(isDarkMode)}>
+          <kbd
+            style={{ ...kbdStyle(isDarkMode), ...kbdClickStyle }}
+            onClick={simulateKey("ArrowDown")}
+          >
             <IconArrowDown className="size-3" />
           </kbd>
-          <span style={{ marginLeft: "6px" }}>Switch side</span>
+          <span style={{ marginLeft: "6px", ...kbdClickStyle }} onClick={simulateKey("ArrowDown")}>
+            Switch side
+          </span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          <kbd style={{ ...kbdStyle(isDarkMode), fontSize: "10px", padding: "2px 6px" }}>Esc</kbd>
-          <span style={{ marginLeft: "6px" }}>Close</span>
+          <kbd
+            style={{
+              ...kbdStyle(isDarkMode),
+              ...kbdClickStyle,
+              fontSize: "10px",
+              padding: "2px 6px",
+            }}
+            onClick={simulateKey("Escape")}
+          >
+            Esc
+          </kbd>
+          <span style={{ marginLeft: "6px", ...kbdClickStyle }} onClick={simulateKey("Escape")}>
+            Close
+          </span>
         </span>
       </div>
     </>
