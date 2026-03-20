@@ -12,6 +12,7 @@ import { NewPieceSheet } from "@/components/admin/NewPieceSheet"
 import { ZoomCursor } from "@/components/ui/ZoomCursor"
 import { fetchImages, filterImages, sortImages, findImageIndex } from "@/lib/images"
 import {
+  getModeFromPath,
   getImageIdFromPath,
   getFilterFromQuery,
   pushCarouselUrl,
@@ -61,17 +62,18 @@ export default function GalleryPageClient() {
   const { data: session } = useSession()
   const isAdmin = !!session
 
-  // Redirect bare "/" to /classic
+  // Derive initial mode from URL, redirect bare "/" to /classic
   const pathSegments = params?.path
+  const [mode, setMode] = useState<GalleryMode>(() => {
+    const raw = pathSegments?.[0] as GalleryMode
+    return VALID_MODES.includes(raw) ? raw : "classic"
+  })
+
   useEffect(() => {
     if (!pathSegments || pathSegments.length === 0) {
       router.replace("/classic")
     }
   }, [pathSegments, router])
-
-  // Derive mode from the first path segment: /classic/supi-38 → path = ["classic", "supi-38"]
-  const rawMode = pathSegments?.[0] as GalleryMode
-  const mode: GalleryMode = VALID_MODES.includes(rawMode) ? rawMode : "classic"
 
   // Read initial filter from ?filter= query param
   const [filter, setFilter] = useState<ImageFilter>(() => getFilterFromQuery())
@@ -205,6 +207,9 @@ export default function GalleryPageClient() {
   // filter so the image becomes visible before opening the carousel.
   useEffect(() => {
     const onPopState = () => {
+      // Sync mode with the URL so back/forward between modes works
+      setMode(getModeFromPath())
+
       const imageId = getImageIdFromPath()
       if (!imageId) {
         setCarouselOpen(false)
@@ -264,18 +269,15 @@ export default function GalleryPageClient() {
   }, [mode, filter])
 
   /**
-   * Switches gallery mode via Next.js router (real navigation to /[mode]).
-   * Preserves the current filter in the URL query string.
-   *
-   * No setMode() call needed: router.push() triggers a full component remount
-   * and the new instance derives mode from useParams. Calling setMode() here
-   * would be a no-op (unmount discards local state) and causes a warning.
+   * Switches gallery mode via local state + pushState (no full navigation).
+   * Staying mounted lets AnimatePresence animate the exit/enter transition.
    */
   const handleModeChange = useCallback(
     (newMode: GalleryMode) => {
-      pushModeUrl(newMode, filter, router)
+      setMode(newMode)
+      pushModeUrl(newMode, filter)
     },
-    [filter, router]
+    [filter]
   )
 
   /**

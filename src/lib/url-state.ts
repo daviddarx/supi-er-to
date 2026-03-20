@@ -1,8 +1,5 @@
 import type { GalleryMode, ImageFilter } from "@/types"
 
-// Use a loose router type to avoid importing from Next.js internals
-type RouterInstance = { push: (path: string) => void }
-
 const VALID_MODES: GalleryMode[] = ["classic", "grid", "explorative", "experimental"]
 
 /**
@@ -64,15 +61,13 @@ export function pushCarouselUrl(
 }
 
 /**
- * Navigates to a new gallery mode using the Next.js router (real navigation).
- * Preserves the active filter in the query string.
- * Closes the carousel (no imageId in the URL).
- *
- * @param mode - The target gallery mode
- * @param filter - The current active filter
- * @param router - The Next.js App Router instance from useRouter()
+ * Updates the URL to reflect a mode change using window.history.pushState.
+ * Does NOT trigger a Next.js navigation — keeps the SPA mounted so
+ * AnimatePresence can animate exit/enter transitions between modes.
  */
-export function pushModeUrl(mode: GalleryMode, filter: ImageFilter, router: RouterInstance): void {
-  const path = filter !== "all" ? `/${mode}?filter=${filter}` : `/${mode}`
-  router.push(path)
+export function pushModeUrl(mode: GalleryMode, filter: ImageFilter): void {
+  if (typeof window === "undefined") return
+  const url = new URL(`/${mode}`, window.location.origin)
+  if (filter !== "all") url.searchParams.set("filter", filter)
+  window.history.pushState({}, "", url.toString())
 }
