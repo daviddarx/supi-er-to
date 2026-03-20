@@ -44,6 +44,7 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
 
   // Direct DOM refs — manipulated via JS to avoid per-frame React renders
   const cursorRef = useRef<HTMLDivElement>(null)
+  const innerRef = useRef<HTMLDivElement>(null)
   const verticalLineRef = useRef<SVGLineElement>(null)
 
   // Raw mouse position (updated on every mousemove).
@@ -62,7 +63,8 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
     if (isTouch) return
 
     const el = cursorRef.current
-    if (!el) return
+    const inner = innerRef.current
+    if (!el || !inner) return
 
     // Initialise positions to viewport centre so the cursor doesn't fly in
     // from (0, 0) the first time it becomes visible.
@@ -70,9 +72,8 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
     const cy = window.innerHeight / 2
     targetPos.current = { x: cx, y: cy }
     displayPos.current = { x: cx, y: cy }
-    // Sync the DOM transform immediately so it matches the refs — prevents a
-    // visual jump from translate(0,0) to the centre position on first hover.
     el.style.transform = `translate(${cx + 20}px, ${cy + 20}px)`
+    inner.style.transform = "rotate(180deg) scale(0)"
 
     // ── Mouse tracking ──────────────────────────────────────────────────────
     const onMouseMove = (e: MouseEvent) => {
@@ -82,18 +83,16 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
 
     // ── Hover events from gallery image components ───────────────────────────
     const onHoverStart = () => {
-      // Cancel any pending fade-out (user moved directly from one image to another)
       if (fadeOutTimer.current !== null) {
         clearTimeout(fadeOutTimer.current)
         fadeOutTimer.current = null
       }
-      el.style.opacity = "1"
+      inner.style.transform = "rotate(0deg) scale(1)"
     }
 
     const onHoverEnd = () => {
-      // Defer fade-out so quick moves between images don't cause a flicker
       fadeOutTimer.current = setTimeout(() => {
-        el.style.opacity = "0"
+        inner.style.transform = "rotate(180deg) scale(0)"
         fadeOutTimer.current = null
       }, FADE_OUT_DELAY_MS)
     }
@@ -118,7 +117,6 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
       displayPos.current.x += (targetPos.current.x - displayPos.current.x) * LERP_FACTOR
       displayPos.current.y += (targetPos.current.y - displayPos.current.y) * LERP_FACTOR
 
-      // Offset by +20px on both axes so the cursor sits below-right of the pointer
       el.style.transform = `translate(${displayPos.current.x + 20}px, ${displayPos.current.y + 20}px)`
 
       rafHandle.current = requestAnimationFrame(tick)
@@ -140,9 +138,7 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
         clearTimeout(fadeOutTimer.current)
         fadeOutTimer.current = null
       }
-      // Ensure cursor is hidden after cleanup so it doesn't linger across
-      // mode transitions.
-      el.style.opacity = "0"
+      inner.style.transform = "rotate(180deg) scale(0)"
     }
   }, [mode, isTouch])
 
@@ -156,62 +152,53 @@ export function ZoomCursor({ mode }: ZoomCursorProps) {
         position: "fixed",
         top: 0,
         left: 0,
-        // JS sets the translate on every rAF tick
         transform: "translate(0px, 0px)",
-        // Invisible until an image-hover-start event arrives
-        opacity: 0,
-        // CSS handles the fade; JS lerp handles the position
-        transition: "opacity 0.2s ease",
-        // Must never intercept pointer events — would break image clicks
         pointerEvents: "none",
         zIndex: 9999,
       }}
     >
-      {/*
-       * Solid filled circle with contrasting "+" lines.
-       * Uses CSS custom properties (--foreground / --background from shadcn)
-       * so it automatically adapts to dark/light mode without extra class logic.
-       *
-       * Dark mode:  --foreground = near-white  → white circle, dark "+"
-       * Light mode: --foreground = near-black  → black circle, white "+"
-       */}
-      <svg
-        width={32}
-        height={32}
-        viewBox="0 0 32 32"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
+      <div
+        ref={innerRef}
+        style={{
+          transform: "rotate(180deg) scale(0)",
+          transition: "transform 0.2s ease",
+        }}
       >
-        {/* Filled circle — same colour as text/foreground */}
-        <circle
-          cx="16"
-          cy="16"
-          r="15"
-          style={{ fill: "var(--foreground)", stroke: "var(--foreground)" }}
-          strokeWidth={1}
-        />
-        {/* "+" horizontal arm — inverted (background colour) */}
-        <line
-          x1="9"
-          y1="16"
-          x2="23"
-          y2="16"
-          style={{ stroke: "var(--background)" }}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-        />
-        {/* "+" vertical arm — hidden when zoomed in to show "−" */}
-        <line
-          ref={verticalLineRef}
-          x1="16"
-          y1="9"
-          x2="16"
-          y2="23"
-          style={{ stroke: "var(--background)" }}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-        />
-      </svg>
+        <svg
+          width={32}
+          height={32}
+          viewBox="0 0 32 32"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle
+            cx="16"
+            cy="16"
+            r="15"
+            style={{ fill: "var(--foreground)", stroke: "var(--foreground)" }}
+            strokeWidth={1}
+          />
+          <line
+            x1="9"
+            y1="16"
+            x2="23"
+            y2="16"
+            style={{ stroke: "var(--background)" }}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+          />
+          <line
+            ref={verticalLineRef}
+            x1="16"
+            y1="9"
+            x2="16"
+            y2="23"
+            style={{ stroke: "var(--background)" }}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
     </div>
   )
 }
