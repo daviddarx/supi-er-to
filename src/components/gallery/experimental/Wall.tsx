@@ -24,6 +24,8 @@ export interface WallHandle {
   setVisible: (v: boolean) => void
   /** Reposition the wall along Z for infinite looping — no React re-render. */
   setPositionZ: (z: number) => void
+  /** Fade out and disable clicks when occluded by focused wall. */
+  setOccluded: (v: boolean) => void
 }
 
 interface WallProps {
@@ -55,8 +57,10 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
   const texture = useTexture(getImageSrc(image.id, textureSize))
   const groupRef = useRef<THREE.Group>(null)
   const opacityRef = useRef(1)
+  const targetOpacityRef = useRef(1)
   const visibleRef = useRef(true)
   const wasVisibleRef = useRef(true)
+  const occludedRef = useRef(false)
 
   useEffect(() => {
     onReady?.()
@@ -81,20 +85,38 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
         groupRef.current.position.z = z
       }
     },
+    setOccluded(v: boolean) {
+      occludedRef.current = v
+      targetOpacityRef.current = v ? 0 : 1
+    },
   }))
 
   useFrame((_, delta) => {
-    if (!visibleRef.current || opacityRef.current >= 1) return
-    opacityRef.current = Math.min(1, opacityRef.current + delta * FADE_SPEED)
+    if (!visibleRef.current) return
     const group = groupRef.current
     if (!group) return
-    group.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        const mat = child.material as THREE.Material
-        mat.transparent = true
-        mat.opacity = opacityRef.current
+
+    const target = targetOpacityRef.current
+    const settled = Math.abs(opacityRef.current - target) < 0.001
+
+    if (!settled) {
+      // Fade toward target opacity
+      if (opacityRef.current < target) {
+        opacityRef.current = Math.min(target, opacityRef.current + delta * FADE_SPEED)
+      } else {
+        opacityRef.current = Math.max(target, opacityRef.current - delta * FADE_SPEED)
       }
-    })
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const mat = child.material as THREE.Material
+          mat.transparent = true
+          mat.opacity = opacityRef.current
+        }
+      })
+    }
+
+    // Once fully faded out, hide from scene (removes from raycasting)
+    group.visible = !(occludedRef.current && opacityRef.current <= 0.01)
   })
 
   const aspect = image.width / image.height
@@ -125,7 +147,7 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
         position={[0, 0, depth / 2 + 0.15]}
         onClick={(e) => {
           e.stopPropagation()
-          onClick?.()
+          if (!occludedRef.current) onClick?.()
         }}
         onPointerOver={(e) => {
           e.stopPropagation()

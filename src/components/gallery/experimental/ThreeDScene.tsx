@@ -454,6 +454,10 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
 
     const handleClick = () => {
       stopAutoDrift()
+      // When focused, any click/tap on canvas unfocuses
+      if (isFocusing.current) {
+        unfocus()
+      }
     }
 
     canvas.addEventListener("wheel", handleWheel, { passive: false })
@@ -539,9 +543,19 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
       const visible = effectiveZ <= frontZ && effectiveZ >= backZ && effectiveZ <= 0
       wallDistances.push({ index: i, effectiveZ, visible })
 
+      // When focused, fade out opposite-side walls so they don't block the view
+      let occluded = false
+      if (isFocusing.current && focusedWall.current !== null && i !== focusedWall.current) {
+        const fw = walls[focusedWall.current]
+        if (walls[i].isLeft !== fw.isLeft) {
+          occluded = true
+        }
+      }
+
       const handle = wallRefs[i].current
       if (handle) {
         handle.setVisible(visible)
+        handle.setOccluded(occluded)
         if (visible) {
           handle.setPositionZ(effectiveZ)
         }
