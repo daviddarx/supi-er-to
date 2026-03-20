@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState, useEffect, useRef, useCallback } from "react"
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Canvas } from "@react-three/fiber"
 import { ThreeDScene, CAMERA_START_Z } from "./experimental/ThreeDScene"
 import { IconArrowLeft, IconArrowRight, IconArrowDown } from "@/components/ui/icons"
@@ -33,8 +33,16 @@ const STROKE_WIDTH = 1
 const RADIUS = (SPINNER_SIZE - STROKE_WIDTH) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
+/** Detect mobile/low-memory device for texture size + preload count. */
+const isMobileDevice = () =>
+  typeof window !== "undefined" &&
+  (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768)
+
 export default function ExperimentalGallery({ images, isDarkMode }: ExperimentalGalleryProps) {
   const bgColor = isDarkMode ? "#0a0a0a" : "#ffffff"
+  const isMobile = useMemo(() => isMobileDevice(), [])
+  const textureSize: 500 | 1280 = isMobile ? 500 : 1280
+  const preloadCount = isMobile ? 30 : images.length
   const [imagesPreloaded, setImagesPreloaded] = useState(false)
   const [sceneReady, setSceneReady] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
@@ -70,12 +78,14 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
 
     let stale = false
     countRef.current = 0
-    const total = images.length
+    // On mobile, only preload first batch to avoid GPU memory crash
+    const imagesToPreload = images.slice(0, preloadCount)
+    const total = imagesToPreload.length
 
     // Preload as vanilla Image objects — no Three.js overhead, keeps main thread free
     // for smooth loader UI updates. useTexture will then hit browser cache instantly.
-    for (const image of images) {
-      const url = getImageSrc(image.id, 1280)
+    for (const image of imagesToPreload) {
+      const url = getImageSrc(image.id, textureSize)
       const img = new Image()
       img.onload = img.onerror = () => {
         if (stale) return
@@ -198,7 +208,12 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
               style={{ background: bgColor }}
             >
               <Suspense fallback={null}>
-                <ThreeDScene images={images} isDarkMode={isDarkMode} onReady={handleSceneReady} />
+                <ThreeDScene
+                  images={images}
+                  isDarkMode={isDarkMode}
+                  textureSize={textureSize}
+                  onReady={handleSceneReady}
+                />
               </Suspense>
             </Canvas>
           </div>

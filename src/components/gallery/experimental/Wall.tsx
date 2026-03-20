@@ -29,6 +29,7 @@ export interface WallHandle {
 interface WallProps {
   image: GalleryImage
   isDarkMode: boolean
+  textureSize?: 500 | 1280
   position?: [number, number, number]
   rotation?: [number, number, number]
   border?: number
@@ -41,6 +42,7 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
   {
     image,
     isDarkMode,
+    textureSize = 1280,
     position = [0, 0, 0],
     rotation = [0, 0, 0],
     border = BORDER,
@@ -50,7 +52,7 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
   },
   ref
 ) {
-  const texture = useTexture(getImageSrc(image.id, 1280))
+  const texture = useTexture(getImageSrc(image.id, textureSize))
   const groupRef = useRef<THREE.Group>(null)
   const opacityRef = useRef(1)
   const visibleRef = useRef(true)

@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useMemo, useRef, useEffect, createRef } from "react"
+import { Suspense, useMemo, useRef, useEffect, useState, useCallback, createRef } from "react"
 import { useThree, useFrame } from "@react-three/fiber"
 import * as THREE from "three"
 import {
@@ -75,9 +75,13 @@ const AUTO_DRIFT_SPEED = 1.5
 /** Seconds of inactivity before auto-drift resumes after user interaction. */
 const AUTO_DRIFT_RESUME_DELAY = 10
 
+/** Max number of Wall components mounted at once (GPU texture limit on mobile). */
+const MAX_MOUNTED_WALLS = 30
+
 interface ThreeDSceneProps {
   images: GalleryImage[]
   isDarkMode: boolean
+  textureSize: 500 | 1280
   onReady?: () => void
 }
 
@@ -160,7 +164,11 @@ function computeLayout(images: GalleryImage[]) {
   return { walls, totalLength, twistMap }
 }
 
-export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
+const isMobile =
+  typeof window !== "undefined" &&
+  (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768)
+
+export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeDSceneProps) {
   const { scene, camera, gl } = useThree()
   scene.background = new THREE.Color(isDarkMode ? "#0a0a0a" : "#ffffff")
 
@@ -189,7 +197,8 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
   const handleWallReady = useMemo(() => {
     return () => {
       readyCountRef.current++
-      if (!sceneReadyRef.current && readyCountRef.current >= walls.length) {
+      const readyThreshold = Math.min(walls.length, MAX_MOUNTED_WALLS)
+      if (!sceneReadyRef.current && readyCountRef.current >= readyThreshold) {
         sceneReadyRef.current = true
         onReady?.()
         // Enable interaction detection after loader fade-out completes
@@ -212,6 +221,14 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
   }, [walls])
 
   const wallRefs = useMemo(() => walls.map(() => createRef<WallHandle>()), [walls])
+
+  // On mobile, only mount nearby walls to limit GPU memory. On desktop, mount all.
+  const allWallIndices = useMemo(() => new Set(walls.map((_, i) => i)), [walls])
+  const [mountedWalls, setMountedWalls] = useState<Set<number>>(() =>
+    isMobile ? new Set() : allWallIndices
+  )
+  const mountedWallsRef = useRef(mountedWalls)
+  mountedWallsRef.current = mountedWalls
 
   // Compute aspect-aware start Z and set camera on mount
   const cam = camera as THREE.PerspectiveCamera
@@ -504,10 +521,13 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
       camera.quaternion.slerp(corridorQuat.current, CAMERA_LERP)
     }
 
-    // Visibility culling — always runs
+    // Visibility culling + mount management — always runs
     const camZ = camera.position.z
     const frontZ = camZ + VISIBLE_BEHIND
     const backZ = camZ - VISIBLE_AHEAD
+
+    // Collect walls sorted by distance to camera for mount priority
+    const wallDistances: Array<{ index: number; effectiveZ: number; visible: boolean }> = []
 
     for (let i = 0; i < walls.length; i++) {
       const wallZ = walls[i].z
@@ -517,12 +537,28 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
         effectiveZ = wallZ + loopOffset
       }
       const visible = effectiveZ <= frontZ && effectiveZ >= backZ && effectiveZ <= 0
+      wallDistances.push({ index: i, effectiveZ, visible })
+
       const handle = wallRefs[i].current
       if (handle) {
         handle.setVisible(visible)
         if (visible) {
           handle.setPositionZ(effectiveZ)
         }
+      }
+    }
+
+    // On mobile: update mounted set to keep closest walls, limiting GPU memory
+    if (isMobile) {
+      const sorted = wallDistances
+        .map((w) => ({ ...w, dist: Math.abs(w.effectiveZ - camZ) }))
+        .sort((a, b) => a.dist - b.dist)
+      const newMounted = new Set(sorted.slice(0, MAX_MOUNTED_WALLS).map((w) => w.index))
+
+      // Only trigger React re-render if the set actually changed
+      const prev = mountedWallsRef.current
+      if (newMounted.size !== prev.size || [...newMounted].some((i) => !prev.has(i))) {
+        setMountedWalls(newMounted)
       }
     }
   })
@@ -537,23 +573,26 @@ export function ThreeDScene({ images, isDarkMode, onReady }: ThreeDSceneProps) {
       {/* Left fill light */}
       <directionalLight position={[-60, 10, -40]} intensity={isDarkMode ? 0.2 : 0.1} />
 
-      {walls.map((w, i) => (
-        <group key={i} rotation={[0, 0, w.twistAngle]}>
-          <Suspense fallback={null}>
-            <Wall
-              ref={wallRefs[i]}
-              image={w.image}
-              isDarkMode={isDarkMode}
-              position={w.position}
-              rotation={w.rotation}
-              border={w.border}
-              depth={w.depth}
-              onClick={() => handleWallClick(i)}
-              onReady={handleWallReady}
-            />
-          </Suspense>
-        </group>
-      ))}
+      {walls.map((w, i) =>
+        mountedWalls.has(i) ? (
+          <group key={i} rotation={[0, 0, w.twistAngle]}>
+            <Suspense fallback={null}>
+              <Wall
+                ref={wallRefs[i]}
+                image={w.image}
+                isDarkMode={isDarkMode}
+                textureSize={textureSize}
+                position={w.position}
+                rotation={w.rotation}
+                border={w.border}
+                depth={w.depth}
+                onClick={() => handleWallClick(i)}
+                onReady={handleWallReady}
+              />
+            </Suspense>
+          </group>
+        ) : null
+      )}
     </>
   )
 }
