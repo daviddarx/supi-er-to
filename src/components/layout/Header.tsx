@@ -5,7 +5,7 @@
  */
 export function Header() {
   return (
-    <header className="p-gutter">
+    <header className="p-gutter flex flex-col gap-1">
       <h1 className="leading-tight font-bold tracking-tight">SUPI.ER.TO</h1>
       <p className="text-muted-foreground leading-tight font-normal">
         BONE is dead — long live SUPI.ER.TO — Zürich
