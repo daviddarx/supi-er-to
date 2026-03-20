@@ -450,7 +450,7 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
       const touchY = e.touches[0].clientY
       const deltaY = lastTouchY - touchY
       lastTouchY = touchY
-      targetZ.current -= deltaY * SCROLL_SPEED * 8
+      targetZ.current += deltaY * SCROLL_SPEED * 8
       targetZ.current = Math.min(startZRef.current, targetZ.current)
     }
 
@@ -458,7 +458,7 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
       e.preventDefault()
       if (isFocusing.current) return // Disable scroll when focused
       stopAutoDrift()
-      targetZ.current -= e.deltaY * SCROLL_SPEED
+      targetZ.current += e.deltaY * SCROLL_SPEED
       targetZ.current = Math.min(startZRef.current, targetZ.current)
     }
 
