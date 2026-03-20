@@ -59,6 +59,7 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
   const [sceneReady, setSceneReady] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
   const [focusedIsLeft, setFocusedIsLeft] = useState(true)
+  const [hasScrolled, setHasScrolled] = useState(false)
   const handleSceneReady = useCallback(() => setSceneReady(true), [])
 
   // Listen for focus/unfocus events from ThreeDScene
@@ -71,9 +72,12 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
     const onZoomOut = () => setIsFocused(false)
     window.addEventListener("image-zoomed-in", onZoomIn)
     window.addEventListener("image-zoomed-out", onZoomOut)
+    const onWheel = () => setHasScrolled(true)
+    window.addEventListener("wheel", onWheel, { once: true })
     return () => {
       window.removeEventListener("image-zoomed-in", onZoomIn)
       window.removeEventListener("image-zoomed-out", onZoomOut)
+      window.removeEventListener("wheel", onWheel)
     }
   }, [])
 
@@ -302,6 +306,32 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
           <span style={{ marginLeft: "6px", ...kbdClickStyle }} onClick={simulateKey("Escape")}>
             Close
           </span>
+        </span>
+      </div>
+
+      {/* Scroll hint — visible when no picture is focused */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: "calc(var(--header-height, 0px) + var(--gutter))",
+          left: 0,
+          right: 0,
+          display: "flex",
+          justifyContent: "center",
+          fontFamily: "var(--font-dm-mono), monospace",
+          fontSize: "10px",
+          color: isDarkMode ? "rgba(255,255,255,1)" : "rgba(0,0,0,1)",
+          pointerEvents: "none",
+          opacity: sceneReady && !isFocused && !hasScrolled ? 1 : 0,
+          transition: "opacity 0.3s ease",
+          zIndex: 9998,
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <kbd style={{ ...kbdStyle(isDarkMode), fontSize: "10px", padding: "2px 6px" }}>
+            Scroll
+          </kbd>
+          <span style={{ marginLeft: "6px" }}>Advance in the corridor</span>
         </span>
       </div>
     </>
