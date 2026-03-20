@@ -97,6 +97,27 @@ export default function GalleryPageClient() {
     return () => observer.disconnect()
   }, [])
 
+  // In classic mode, hide the header bar background when the viewport is wider
+  // than the image column (max-w-300 = 75rem). Uses a CSS variable so both the
+  // element and its ::after pseudo-element can transition together.
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+
+    if (mode !== "classic") {
+      el.style.setProperty("--header-bg-opacity", "1")
+      return
+    }
+
+    const update = () => {
+      const colMaxPx = parseFloat(getComputedStyle(document.documentElement).fontSize) * 75
+      el.style.setProperty("--header-bg-opacity", window.innerWidth > colMaxPx ? "0" : "1")
+    }
+    update()
+    window.addEventListener("resize", update)
+    return () => window.removeEventListener("resize", update)
+  }, [mode])
+
   // Measure scrollbar gutter width so the fixed header can reserve matching space.
   // scrollbar-gutter: stable on html/body reserves space for the scrollbar even
   // when content doesn't scroll, but fixed elements ignore it — they span the
@@ -315,7 +336,7 @@ export default function GalleryPageClient() {
         {/* Fixed bottom bar — Header + OptionsBar on the same row */}
         <div
           ref={headerRef}
-          className="no-scroll-compensate bg-background after:bg-background fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between pr-[var(--scrollbar-width,0px)] after:absolute after:top-full after:right-0 after:left-0 after:h-25 after:content-[''] max-md:flex-col max-md:items-stretch"
+          className="header-bar no-scroll-compensate fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between pr-[var(--scrollbar-width,0px)] max-md:flex-col max-md:items-stretch"
         >
           <Header />
           <OptionsBar

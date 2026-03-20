@@ -38,7 +38,10 @@ export default function GridGallery({ images, onImageClick }: GridGalleryProps) 
   }, [images])
 
   return (
-    <div ref={containerRef} className="px-gutter pb-gutter">
+    <div
+      ref={containerRef}
+      className="px-gutter pb-gutter before:bg-background before:h-gutter before:pointer-events-none before:fixed before:top-0 before:right-0 before:left-0 before:z-10 before:content-['']"
+    >
       <Masonry
         breakpointCols={columnCount}
         className="masonry-grid"
