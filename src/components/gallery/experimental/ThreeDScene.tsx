@@ -436,8 +436,22 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
   useEffect(() => {
     const canvas = gl.domElement
 
-    const handleTouchStart = () => {
+    let lastTouchY = 0
+
+    const handleTouchStart = (e: TouchEvent) => {
       isTouch.current = true
+      lastTouchY = e.touches[0].clientY
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      if (isFocusing.current) return
+      stopAutoDrift()
+      const touchY = e.touches[0].clientY
+      const deltaY = lastTouchY - touchY
+      lastTouchY = touchY
+      targetZ.current -= deltaY * SCROLL_SPEED * 8
+      targetZ.current = Math.min(startZRef.current, targetZ.current)
     }
 
     const handleWheel = (e: WheelEvent) => {
@@ -464,12 +478,14 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
 
     canvas.addEventListener("wheel", handleWheel, { passive: false })
     window.addEventListener("mousemove", handleMouseMove)
-    canvas.addEventListener("touchstart", handleTouchStart, { once: true })
+    canvas.addEventListener("touchstart", handleTouchStart)
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: false })
     canvas.addEventListener("click", handleClick)
     return () => {
       canvas.removeEventListener("wheel", handleWheel)
       window.removeEventListener("mousemove", handleMouseMove)
       canvas.removeEventListener("touchstart", handleTouchStart)
+      canvas.removeEventListener("touchmove", handleTouchMove)
       canvas.removeEventListener("click", handleClick)
       if (autoDriftTimer.current) clearTimeout(autoDriftTimer.current)
     }

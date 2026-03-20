@@ -62,6 +62,14 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
   const [hasScrolled, setHasScrolled] = useState(false)
   const handleSceneReady = useCallback(() => setSceneReady(true), [])
 
+  // Prevent page scrollbar while experimental gallery is mounted
+  useEffect(() => {
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [])
+
   // Listen for focus/unfocus events from ThreeDScene
   useEffect(() => {
     const onZoomIn = (e: Event) => {
@@ -72,12 +80,14 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
     const onZoomOut = () => setIsFocused(false)
     window.addEventListener("image-zoomed-in", onZoomIn)
     window.addEventListener("image-zoomed-out", onZoomOut)
-    const onWheel = () => setHasScrolled(true)
-    window.addEventListener("wheel", onWheel, { once: true })
+    const onScroll = () => setHasScrolled(true)
+    window.addEventListener("wheel", onScroll, { once: true })
+    window.addEventListener("touchmove", onScroll, { once: true })
     return () => {
       window.removeEventListener("image-zoomed-in", onZoomIn)
       window.removeEventListener("image-zoomed-out", onZoomOut)
-      window.removeEventListener("wheel", onWheel)
+      window.removeEventListener("wheel", onScroll)
+      window.removeEventListener("touchmove", onScroll)
     }
   }, [])
 
@@ -329,7 +339,7 @@ export default function ExperimentalGallery({ images, isDarkMode }: Experimental
       >
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
           <kbd style={{ ...kbdStyle(isDarkMode), fontSize: "10px", padding: "2px 6px" }}>
-            Scroll
+            {isMobile ? "Swipe" : "Scroll"}
           </kbd>
           <span style={{ marginLeft: "6px" }}>Advance in the corridor</span>
         </span>
