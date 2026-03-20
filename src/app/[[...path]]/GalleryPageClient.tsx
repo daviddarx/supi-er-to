@@ -138,7 +138,9 @@ export default function GalleryPageClient() {
   // Sync React state with the theme already applied by the inline <head> script
   useEffect(() => {
     const saved = localStorage.getItem("theme")
-    const isDark = saved ? saved === "dark" : true
+    const isDark = saved
+      ? saved === "dark"
+      : window.matchMedia("(prefers-color-scheme: dark)").matches
     setIsDarkMode(isDark)
     document.documentElement.classList.toggle("dark", isDark)
   }, [])
