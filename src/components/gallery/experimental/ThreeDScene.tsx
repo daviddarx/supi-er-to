@@ -246,6 +246,7 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
   const mouseX = useRef(0)
   const currentRotationY = useRef(0)
   const isTouch = useRef(false)
+  const meshClicked = useRef(false)
 
   // Auto-drift state
   const isAutoDrifting = useRef(true)
@@ -369,6 +370,7 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
   }
 
   const handleWallClick = (wallIndex: number) => {
+    meshClicked.current = true
     if (isFocusing.current && focusedWall.current === wallIndex) {
       unfocus()
       return
@@ -470,10 +472,14 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
 
     const handleClick = () => {
       stopAutoDrift()
-      // When focused, any click/tap on canvas unfocuses
-      if (isFocusing.current) {
-        unfocus()
-      }
+      // When focused, clicking empty space (not a wall mesh) unfocuses.
+      // meshClicked is set by R3F onClick before this DOM handler fires via setTimeout.
+      setTimeout(() => {
+        if (isFocusing.current && !meshClicked.current) {
+          unfocus()
+        }
+        meshClicked.current = false
+      }, 0)
     }
 
     canvas.addEventListener("wheel", handleWheel, { passive: false })
