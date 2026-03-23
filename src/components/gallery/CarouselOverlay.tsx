@@ -3,12 +3,19 @@
 // Note: yet-another-react-lightbox/styles.css is imported globally in globals.css.
 // Do NOT import it here to avoid duplicate stylesheet loading.
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
 import Lightbox, { ImageSlide, useController } from "yet-another-react-lightbox"
-import type { SlotStyles, RenderSlideProps } from "yet-another-react-lightbox"
+import type { SlotStyles, RenderSlideProps, ZoomRef } from "yet-another-react-lightbox"
+import Zoom from "yet-another-react-lightbox/plugins/zoom"
 import { cn } from "@/lib/utils"
 import { getImageSrc } from "@/lib/images"
-import { IconArrowLeft, IconArrowRight, IconClose } from "@/components/ui/icons"
+import {
+  IconArrowLeft,
+  IconArrowRight,
+  IconClose,
+  IconZoomIn,
+  IconZoomOut,
+} from "@/components/ui/icons"
 import type { GalleryImage } from "@/types"
 
 interface CarouselOverlayProps {
@@ -26,9 +33,11 @@ interface CarouselOverlayProps {
 
 function FadeSlide({ slide, rect }: RenderSlideProps) {
   const [loaded, setLoaded] = useState(false)
+  const { close } = useController()
 
   return (
     <div
+      onClick={close}
       style={{
         opacity: loaded ? 1 : 0,
         transition: "opacity 0.3s ease",
@@ -37,10 +46,14 @@ function FadeSlide({ slide, rect }: RenderSlideProps) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        pointerEvents: "none",
       }}
     >
-      <ImageSlide slide={slide} rect={rect} onLoad={() => setLoaded(true)} />
+      <ImageSlide
+        slide={slide}
+        rect={rect}
+        onLoad={() => setLoaded(true)}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      />
     </div>
   )
 }
@@ -101,6 +114,36 @@ function CloseButton({ btnClass }: CloseButtonProps) {
   )
 }
 
+// ─── ZoomButton ────────────────────────────────────────────────────────────────
+
+interface ZoomButtonProps {
+  zoomRef: React.RefObject<ZoomRef | null>
+  btnClass: string
+  isZoomed: boolean
+}
+
+function ZoomButton({ zoomRef, btnClass, isZoomed }: ZoomButtonProps) {
+  const handleClick = () => {
+    const ref = zoomRef.current
+    if (!ref) return
+    if (ref.zoom > 1) {
+      ref.changeZoom(1)
+    } else {
+      ref.zoomIn()
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      className={cn("absolute top-4 right-16 z-50", btnClass)}
+      aria-label={isZoomed ? "Zoom out" : "Zoom in"}
+    >
+      {isZoomed ? <IconZoomOut strokeWidth={1} /> : <IconZoomIn strokeWidth={1} />}
+    </button>
+  )
+}
+
 // ─── CarouselOverlay ──────────────────────────────────────────────────────────
 
 /**
@@ -136,11 +179,14 @@ export function CarouselOverlay({
     [images]
   )
 
+  const zoomRef = useRef<ZoomRef>(null)
+  const [isZoomed, setIsZoomed] = useState(false)
+
   const backdropColor = isDarkMode ? "rgba(0, 0, 0, 0.95)" : "rgba(255, 255, 255, 0.95)"
 
   // 40×40px buttons matching the header buttons exactly.
   const btnClass =
-    "flex h-10 w-10 cursor-pointer items-center justify-center border bg-transparent transition-colors has-hover:hover:bg-muted"
+    "flex h-10 w-10 cursor-pointer items-center justify-center border bg-background transition-colors has-hover:hover:bg-muted"
 
   return (
     <Lightbox
@@ -161,10 +207,16 @@ export function CarouselOverlay({
         buttonClose: () => <CloseButton key="close" btnClass={btnClass} />,
         buttonPrev: () => <NavButton key="prev" direction="prev" btnClass={btnClass} />,
         buttonNext: () => <NavButton key="next" direction="next" btnClass={btnClass} />,
+        buttonZoom: () => (
+          <ZoomButton key="zoom" zoomRef={zoomRef} btnClass={btnClass} isZoomed={isZoomed} />
+        ),
       }}
+      plugins={[Zoom]}
+      zoom={{ ref: zoomRef, maxZoomPixelRatio: 3, scrollToZoom: false }}
       carousel={{ padding: "5%" }}
       animation={{ swipe: 300 }}
-      controller={{ closeOnBackdropClick: true }}
+      controller={{ closeOnBackdropClick: true, closeOnPullUp: false, closeOnPullDown: false }}
+      on={{ zoom: ({ zoom }) => setIsZoomed(zoom > 1) }}
     />
   )
 }

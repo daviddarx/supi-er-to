@@ -326,3 +326,44 @@ export function IconPlusCircle({ className, strokeWidth = 1 }: IconProps) {
     </svg>
   )
 }
+
+export function IconZoomIn({ className, strokeWidth = 1 }: IconProps) {
+  return (
+    <svg
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="10.5" cy="10.5" r="7" />
+      <path d="M15.5 15.5L21 21" />
+      <path d="M10.5 7.5V13.5" />
+      <path d="M7.5 10.5H13.5" />
+    </svg>
+  )
+}
+
+export function IconZoomOut({ className, strokeWidth = 1 }: IconProps) {
+  return (
+    <svg
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="10.5" cy="10.5" r="7" />
+      <path d="M15.5 15.5L21 21" />
+      <path d="M7.5 10.5H13.5" />
+    </svg>
+  )
+}
