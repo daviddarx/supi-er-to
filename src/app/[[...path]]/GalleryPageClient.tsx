@@ -10,6 +10,7 @@ import { Header } from "@/components/layout/Header"
 import { OptionsBar } from "@/components/layout/OptionsBar"
 import { NewPieceSheet } from "@/components/admin/NewPieceSheet"
 import { ZoomCursor } from "@/components/ui/ZoomCursor"
+import { ScreenSaver } from "@/components/ui/ScreenSaver"
 import { fetchImages, filterImages, sortImages, findImageIndex } from "@/lib/images"
 import {
   getModeFromPath,
@@ -380,6 +381,15 @@ export default function GalleryPageClient() {
           isOpen={carouselOpen}
           onClose={closeCarousel}
           isDarkMode={isDarkMode}
+        />
+
+        {/* Screen saver — idle-activated displacement shader overlay */}
+        <ScreenSaver
+          enabled={mode !== "experimental"}
+          idleTimeout={carouselOpen ? 10000 : 5000}
+          rampDuration={1500}
+          mode={mode}
+          filter={filter}
         />
 
         {/* Admin upload sheet — only mounted when the user is authenticated */}
