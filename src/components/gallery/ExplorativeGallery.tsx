@@ -473,7 +473,7 @@ export default function ExplorativeGallery({ images, onImageClick }: Explorative
           <Canvas
             orthographic
             camera={{ position: [0, 0, 100], zoom: 1, near: 0.1, far: 1000 }}
-            gl={{ antialias: true, alpha: true }}
+            gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
           >
             <ExplorativeScene
               images={images}
