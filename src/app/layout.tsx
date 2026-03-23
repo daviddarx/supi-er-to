@@ -12,6 +12,7 @@ const dmMono = DM_Mono({
 export const metadata: Metadata = {
   title: "SUPI.ER.TO",
   description: "BONE is dead — long live SUPI.ER.TO — Zürich",
+  metadataBase: new URL("https://supi-er-to.com"),
 }
 
 /**
