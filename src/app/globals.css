@@ -215,6 +215,20 @@
     margin-right: 0 !important;
   }
 
+  /* On iOS, when the browser chrome (address bar / bottom toolbar) hides on
+     scroll, position:fixed bottom:0 stays at the layout viewport bottom —
+     shorter than the visual viewport. A pseudo-element extends the header's
+     background downward to fill the gap left behind the collapsing toolbar. */
+  .fixed-bottom-fill::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 100px;
+    background: inherit;
+  }
+
   ::selection {
     background-color: var(--foreground);
     color: var(--background);
