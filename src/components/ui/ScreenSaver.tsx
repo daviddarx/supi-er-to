@@ -80,7 +80,7 @@ function useIdleDetection(
 // --- Page Capture ---
 
 async function capturePageSnapshot(): Promise<HTMLCanvasElement | null> {
-  const html2canvas = (await import("html2canvas")).default
+  const html2canvas = (await import("html2canvas-pro")).default
 
   // Collect all visible canvas elements before capture (for WebGL compositing)
   const canvasElements = Array.from(document.querySelectorAll("canvas")).filter(
