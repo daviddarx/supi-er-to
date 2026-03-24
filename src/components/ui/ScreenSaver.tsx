@@ -79,18 +79,32 @@ function useIdleDetection(
 
 // --- Page Capture ---
 
+function getHeaderHeight(): number {
+  const headerBar = document.querySelector(".header-bar") as HTMLElement | null
+  return headerBar ? headerBar.offsetHeight : 0
+}
+
 async function capturePageSnapshot(): Promise<HTMLCanvasElement | null> {
   const html2canvas = (await import("html2canvas-pro")).default
+
+  const headerHeight = getHeaderHeight()
+  const captureHeight = window.innerHeight - headerHeight
 
   // Collect all visible canvas elements before capture (for WebGL compositing)
   const canvasElements = Array.from(document.querySelectorAll("canvas")).filter(
     (c) => c.offsetWidth > 0 && c.offsetHeight > 0
   )
 
-  const result = await html2canvas(document.body, {
+  const result = await html2canvas(document.documentElement, {
     scale: window.devicePixelRatio,
     useCORS: true,
-    ignoreElements: (el) => el instanceof HTMLCanvasElement,
+    width: document.documentElement.clientWidth,
+    height: captureHeight,
+    x: window.scrollX,
+    y: window.scrollY,
+    ignoreElements: (el) =>
+      el instanceof HTMLCanvasElement ||
+      (el instanceof HTMLElement && el.classList.contains("header-bar")),
   })
 
   // Composite any canvas elements (e.g. R3F in Explorative mode) onto the snapshot.
@@ -188,6 +202,7 @@ function initWebGL(canvas: HTMLCanvasElement, snapshot: HTMLCanvasElement) {
   // Texture from snapshot
   const texture = gl.createTexture()
   gl.bindTexture(gl.TEXTURE_2D, texture)
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
@@ -309,11 +324,13 @@ export function ScreenSaver({
 
     snapshotRef.current = snapshot
 
+    const headerHeight = getHeaderHeight()
+    const viewHeight = window.innerHeight - headerHeight
+    const contentWidth = document.documentElement.clientWidth
     const canvas = document.createElement("canvas")
-    canvas.width = window.innerWidth * window.devicePixelRatio
-    canvas.height = window.innerHeight * window.devicePixelRatio
-    canvas.style.cssText =
-      "position:fixed;inset:0;width:100%;height:100%;z-index:9997;pointer-events:none;"
+    canvas.width = contentWidth * window.devicePixelRatio
+    canvas.height = viewHeight * window.devicePixelRatio
+    canvas.style.cssText = `position:fixed;top:0;left:0;width:${contentWidth}px;height:${viewHeight}px;z-index:9997;pointer-events:none;`
     document.body.appendChild(canvas)
     canvasRef.current = canvas
 
@@ -325,6 +342,9 @@ export function ScreenSaver({
       stateRef.current = "off"
       return
     }
+
+    // Hide zoom cursor using the existing scale-out animation
+    window.dispatchEvent(new Event("image-hover-end"))
 
     glResources.current = resources
     stateRef.current = "ramping-in"
