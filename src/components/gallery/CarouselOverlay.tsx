@@ -48,12 +48,9 @@ function FadeSlide({ slide, rect }: RenderSlideProps) {
         justifyContent: "center",
       }}
     >
-      <ImageSlide
-        slide={slide}
-        rect={rect}
-        onLoad={() => setLoaded(true)}
-        onClick={(e: React.MouseEvent) => e.stopPropagation()}
-      />
+      <div onClick={(e) => e.stopPropagation()} style={{ display: "contents" }}>
+        <ImageSlide slide={slide} rect={rect} onLoad={() => setLoaded(true)} />
+      </div>
     </div>
   )
 }
