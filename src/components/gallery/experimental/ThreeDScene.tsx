@@ -278,6 +278,9 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
   const returnRotationY = useRef(0)
   const isFocusing = useRef(false)
   const isReturning = useRef(false)
+  /** Occlusion set that only updates once the camera has settled on the new focus target. */
+  const settledOccluded = useRef<Set<number>>(new Set())
+  const focusSettled = useRef(true)
 
   // Scratch objects for quaternion computation
   const lookAtMatrix = useRef(new THREE.Matrix4())
@@ -367,6 +370,7 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     focusedWall.current = wallIndex
     isFocusing.current = true
     isReturning.current = false
+    focusSettled.current = false
     window.dispatchEvent(
       new CustomEvent("image-zoomed-in", { detail: { isLeft: walls[wallIndex].isLeft } })
     )
@@ -389,6 +393,7 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     isFocusing.current = false
     isReturning.current = true
     focusedWall.current = null
+    settledOccluded.current = new Set()
   }
 
   // Keyboard handler: Escape to unfocus, arrows to navigate between walls
@@ -507,6 +512,14 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
 
       // Slerp toward precomputed quaternion — stable Z-roll, no wobble
       camera.quaternion.slerp(focusQuat.current, FOCUS_LERP)
+
+      // Mark settled once camera converges — allows occluded set to update
+      if (!focusSettled.current) {
+        const dist = camera.position.distanceTo(focusTarget.current)
+        if (dist < 0.15) {
+          focusSettled.current = true
+        }
+      }
     } else if (isReturning.current) {
       // Animate back to corridor center
       const returnTarget = new THREE.Vector3(0, 0, targetZ.current)
@@ -560,8 +573,11 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     // Collect walls sorted by distance to camera for mount priority
     const wallDistances: Array<{ index: number; effectiveZ: number; visible: boolean }> = []
 
-    // On narrow screens, precompute which opposite-side walls to occlude (closest + neighbors)
-    const occludedWalls = new Set<number>()
+    // On narrow screens, precompute which opposite-side wall to occlude.
+    // During camera transitions between same-side walls, keep the union of
+    // old (settled) + new occluded sets so the old wall stays hidden until
+    // the camera reaches the new focus target.
+    const newOccluded = new Set<number>()
     if (
       cam.aspect < OCCLUDE_ASPECT_THRESHOLD &&
       isFocusing.current &&
@@ -578,13 +594,14 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
           closestPos = p
         }
       }
-      for (let d = -1; d <= 1; d++) {
-        const p = closestPos + d
-        if (p >= 0 && p < oppositeIndices.length) {
-          occludedWalls.add(oppositeIndices[p])
-        }
-      }
+      newOccluded.add(oppositeIndices[closestPos])
     }
+
+    // Once settled, update the settled set; while moving, use the union
+    if (focusSettled.current) {
+      settledOccluded.current = newOccluded
+    }
+    const occludedWalls = new Set([...settledOccluded.current, ...newOccluded])
 
     for (let i = 0; i < walls.length; i++) {
       const wallZ = walls[i].z
