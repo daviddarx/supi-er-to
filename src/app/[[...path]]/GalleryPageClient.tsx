@@ -386,7 +386,7 @@ export default function GalleryPageClient() {
         {/* Screen saver — idle-activated displacement shader overlay */}
         <ScreenSaver
           enabled={mode !== "experimental"}
-          idleTimeout={carouselOpen ? 10000 : 5000}
+          idleTimeout={carouselOpen ? 30000 : 20000}
           rampDuration={1500}
           mode={mode}
           filter={filter}
