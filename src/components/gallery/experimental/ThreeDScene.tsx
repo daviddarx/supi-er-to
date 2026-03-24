@@ -560,6 +560,32 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     // Collect walls sorted by distance to camera for mount priority
     const wallDistances: Array<{ index: number; effectiveZ: number; visible: boolean }> = []
 
+    // On narrow screens, precompute which opposite-side walls to occlude (closest + neighbors)
+    const occludedWalls = new Set<number>()
+    if (
+      cam.aspect < OCCLUDE_ASPECT_THRESHOLD &&
+      isFocusing.current &&
+      focusedWall.current !== null
+    ) {
+      const fw = walls[focusedWall.current]
+      const oppositeIndices = fw.isLeft ? rightIndices : leftIndices
+      let closestPos = 0
+      let closestDist = Infinity
+      for (let p = 0; p < oppositeIndices.length; p++) {
+        const dist = Math.abs(walls[oppositeIndices[p]].z - fw.z)
+        if (dist < closestDist) {
+          closestDist = dist
+          closestPos = p
+        }
+      }
+      for (let d = -1; d <= 1; d++) {
+        const p = closestPos + d
+        if (p >= 0 && p < oppositeIndices.length) {
+          occludedWalls.add(oppositeIndices[p])
+        }
+      }
+    }
+
     for (let i = 0; i < walls.length; i++) {
       const wallZ = walls[i].z
       let effectiveZ = wallZ
@@ -570,19 +596,7 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
       const visible = effectiveZ <= frontZ && effectiveZ >= backZ && effectiveZ <= 0
       wallDistances.push({ index: i, effectiveZ, visible })
 
-      // On narrow screens, fade out opposite-side walls so they don't block the view
-      let occluded = false
-      if (
-        cam.aspect < OCCLUDE_ASPECT_THRESHOLD &&
-        isFocusing.current &&
-        focusedWall.current !== null &&
-        i !== focusedWall.current
-      ) {
-        const fw = walls[focusedWall.current]
-        if (walls[i].isLeft !== fw.isLeft) {
-          occluded = true
-        }
-      }
+      const occluded = occludedWalls.has(i)
 
       const handle = wallRefs[i].current
       if (handle) {
