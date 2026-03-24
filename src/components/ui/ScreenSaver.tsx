@@ -147,10 +147,35 @@ const FRAGMENT_SHADER = `
   uniform float uTime;
   uniform float uAmplitude;
   varying vec2 vUv;
+
+  // Simple smooth noise based on sine hashing
+  float hash(float n) { return fract(sin(n) * 43758.5453); }
+  float noise(float x) {
+    float i = floor(x);
+    float f = fract(x);
+    float u = f * f * (3.0 - 2.0 * f); // smoothstep
+    return mix(hash(i), hash(i + 1.0), u) * 2.0 - 1.0;
+  }
+
+  // Fractal noise (2 octaves) — creates smooth high/low density zones
+  float fbm(float x) {
+    float v = 0.0;
+    v += noise(x) * 0.6;
+    v += noise(x * 2.3 + 1.7) * 0.4;
+    return v;
+  }
+
   void main() {
-    float wave1 = sin(vUv.y * 8.0 + uTime * 0.3) * 0.6;
-    float wave2 = sin(vUv.y * 15.0 + uTime * 0.17) * 0.3;
-    float wave3 = sin(vUv.y * 3.0 + uTime * 0.07) * 0.1;
+    // Noise-based frequency modulation along Y — creates zones of dense
+    // and sparse waves that drift slowly over time
+    float densityNoise = fbm(vUv.y * 3.0 + uTime * 0.04);
+    float freqMod = 1.0 + densityNoise * 1.8; // 1x to ~2.8x frequency
+
+    // Three waves with noise-modulated frequency
+    float wave1 = sin(vUv.y * 8.0 * freqMod + uTime * 0.3) * 0.5;
+    float wave2 = sin(vUv.y * 15.0 * freqMod + uTime * 0.17) * 0.3;
+    float wave3 = sin(vUv.y * 3.0 + uTime * 0.07) * 0.2;
+
     float displacement = (wave1 + wave2 + wave3) * uAmplitude;
     vec2 uv = vec2(fract(vUv.x + displacement), vUv.y);
     gl_FragColor = texture2D(uTexture, uv);
@@ -227,7 +252,7 @@ function cleanupWebGL(resources: NonNullable<ReturnType<typeof initWebGL>>) {
 
 // --- ScreenSaver Component ---
 
-const AMPLITUDE_TARGET = 0.03
+const AMPLITUDE_TARGET = 0.06
 
 interface ScreenSaverProps {
   enabled: boolean
@@ -282,19 +307,20 @@ export function ScreenSaver({
       const now = performance.now()
       const elapsed = (now - startTimeRef.current) / 1000
 
-      // Handle amplitude ramping
+      // Handle amplitude ramping with ease-in-out
       if (stateRef.current === "ramping-in" || stateRef.current === "ramping-out") {
         const rampElapsed = now - rampStartTime.current
-        const rampProgress = Math.min(rampElapsed / rampDuration, 1)
+        const t = Math.min(rampElapsed / rampDuration, 1)
+        // Cubic ease-in-out: smooth acceleration and deceleration
+        const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 
         if (stateRef.current === "ramping-in") {
           amplitudeRef.current =
-            rampStartAmplitude.current +
-            (AMPLITUDE_TARGET - rampStartAmplitude.current) * rampProgress
-          if (rampProgress >= 1) stateRef.current = "active"
+            rampStartAmplitude.current + (AMPLITUDE_TARGET - rampStartAmplitude.current) * eased
+          if (t >= 1) stateRef.current = "active"
         } else {
-          amplitudeRef.current = rampStartAmplitude.current * (1 - rampProgress)
-          if (rampProgress >= 1) {
+          amplitudeRef.current = rampStartAmplitude.current * (1 - eased)
+          if (t >= 1) {
             cleanup()
             return
           }
