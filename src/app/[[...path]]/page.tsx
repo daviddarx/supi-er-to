@@ -35,9 +35,14 @@ export function generateStaticParams() {
   ]
 }
 
-export function generateMetadata({ params }: { params: { path?: string[] } }): Metadata {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ path?: string[] }>
+}): Promise<Metadata> {
+  const { path } = await params
   const images = loadImages()
-  const imageId = params.path?.[1]
+  const imageId = path?.[1]
   const detailImage = imageId ? images.find((img) => img.id === imageId) : null
   const ogImage = detailImage ?? getLatestImage(images)
   const ogImageUrl = `${SITE_URL}/images/${ogImage.id}.1280.webp`
