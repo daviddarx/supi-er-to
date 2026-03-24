@@ -79,8 +79,12 @@ function useIdleDetection(
 
 // --- Page Capture ---
 
+function getHeaderBar(): HTMLElement | null {
+  return document.querySelector(".header-bar") as HTMLElement | null
+}
+
 function getHeaderHeight(): number {
-  const headerBar = document.querySelector(".header-bar") as HTMLElement | null
+  const headerBar = getHeaderBar()
   return headerBar ? headerBar.offsetHeight : 0
 }
 
@@ -294,6 +298,9 @@ export function ScreenSaver({
       canvasRef.current.remove()
       canvasRef.current = null
     }
+    // Restore header transparency
+    const headerBar = getHeaderBar()
+    if (headerBar) headerBar.style.backgroundColor = ""
     snapshotRef.current = null
     amplitudeRef.current = 0
     stateRef.current = "off"
@@ -373,6 +380,11 @@ export function ScreenSaver({
 
     // Hide zoom cursor using the existing scale-out animation
     window.dispatchEvent(new Event("image-hover-end"))
+
+    // In Classic mode the header is transparent — give it a solid background
+    // so the screensaver distortion doesn't show through
+    const headerBar = getHeaderBar()
+    if (headerBar) headerBar.style.backgroundColor = "var(--background)"
 
     glResources.current = resources
     stateRef.current = "ramping-in"
