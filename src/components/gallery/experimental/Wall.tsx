@@ -17,7 +17,13 @@ export const WALL_HEIGHT = 8
 export const WALL_DEPTH = 1.5
 
 /** Fade-in speed (opacity units per second). */
-const FADE_SPEED = 1.5
+const FADE_IN_SPEED = 1.5
+
+/** Fade-out speed — 3× faster so occluding walls disappear quickly. */
+const FADE_OUT_SPEED = FADE_IN_SPEED * 3
+
+/** Delay (seconds) before fade-in starts after un-occluding. */
+const FADE_IN_DELAY = 0.3
 
 export interface WallHandle {
   /** Set visibility imperatively — no React re-render. */
@@ -61,6 +67,7 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
   const visibleRef = useRef(true)
   const wasVisibleRef = useRef(true)
   const occludedRef = useRef(false)
+  const fadeInDelayRef = useRef(0)
 
   useEffect(() => {
     onReady?.()
@@ -86,8 +93,13 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
       }
     },
     setOccluded(v: boolean) {
+      const wasOccluded = occludedRef.current
       occludedRef.current = v
       targetOpacityRef.current = v ? 0 : 1
+      // Only start delay on the transition from occluded → not occluded
+      if (wasOccluded && !v) {
+        fadeInDelayRef.current = FADE_IN_DELAY
+      }
     },
   }))
 
@@ -102,9 +114,14 @@ export const Wall = forwardRef<WallHandle, WallProps>(function Wall(
     if (!settled) {
       // Fade toward target opacity
       if (opacityRef.current < target) {
-        opacityRef.current = Math.min(target, opacityRef.current + delta * FADE_SPEED)
+        // Fade-in: wait for delay to elapse first
+        if (fadeInDelayRef.current > 0) {
+          fadeInDelayRef.current -= delta
+        } else {
+          opacityRef.current = Math.min(target, opacityRef.current + delta * FADE_IN_SPEED)
+        }
       } else {
-        opacityRef.current = Math.max(target, opacityRef.current - delta * FADE_SPEED)
+        opacityRef.current = Math.max(target, opacityRef.current - delta * FADE_OUT_SPEED)
       }
       group.traverse((child) => {
         if (child instanceof THREE.Mesh) {

@@ -69,6 +69,9 @@ const FOCUS_PADDING = 1.3
 /** Lerp speed for focus/unfocus camera animation. */
 const FOCUS_LERP = 0.04
 
+/** Below this aspect ratio, opposite-side walls are hidden when focused (not enough room). */
+const OCCLUDE_ASPECT_THRESHOLD = 3 / 2
+
 /** Auto-drift speed: world units per second the camera moves into the corridor. */
 const AUTO_DRIFT_SPEED = 1.5
 
@@ -567,9 +570,14 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
       const visible = effectiveZ <= frontZ && effectiveZ >= backZ && effectiveZ <= 0
       wallDistances.push({ index: i, effectiveZ, visible })
 
-      // When focused, fade out opposite-side walls so they don't block the view
+      // On narrow screens, fade out opposite-side walls so they don't block the view
       let occluded = false
-      if (isFocusing.current && focusedWall.current !== null && i !== focusedWall.current) {
+      if (
+        cam.aspect < OCCLUDE_ASPECT_THRESHOLD &&
+        isFocusing.current &&
+        focusedWall.current !== null &&
+        i !== focusedWall.current
+      ) {
         const fw = walls[focusedWall.current]
         if (walls[i].isLeft !== fw.isLeft) {
           occluded = true
