@@ -166,10 +166,12 @@ const FRAGMENT_SHADER = `
   }
 
   void main() {
-    // Noise-based frequency modulation along Y — creates zones of dense
-    // and sparse waves that drift slowly over time
-    float densityNoise = fbm(vUv.y * 3.0 + uTime * 0.04);
-    float freqMod = 1.0 + densityNoise * 1.8; // 1x to ~2.8x frequency
+    // Two noise layers drifting at different speeds and scales —
+    // prevents dense/sparse zones from staying in place
+    float n1 = fbm(vUv.y * 3.0 + uTime * 0.15);
+    float n2 = fbm(vUv.y * 5.0 - uTime * 0.09 + 7.3);
+    float densityNoise = n1 * 0.6 + n2 * 0.4;
+    float freqMod = 1.0 + densityNoise * 1.8;
 
     // Three waves with noise-modulated frequency
     float wave1 = sin(vUv.y * 8.0 * freqMod + uTime * 0.3) * 0.5;
