@@ -176,12 +176,16 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
   const doRaycast = useCallback(
     (clientX: number, clientY: number): string | null => {
       if (!groupRef.current) return null
-      ndcVec.set((clientX / size.width) * 2 - 1, -(clientY / size.height) * 2 + 1)
+      // Convert viewport coords to canvas-local coords (canvas is oversized & centered)
+      const rect = gl.domElement.getBoundingClientRect()
+      const localX = clientX - rect.left
+      const localY = clientY - rect.top
+      ndcVec.set((localX / rect.width) * 2 - 1, -(localY / rect.height) * 2 + 1)
       raycaster.setFromCamera(ndcVec, camera)
       const hits = raycaster.intersectObject(groupRef.current, true)
       return hits.length > 0 ? (hits[0].object.userData.imageId ?? null) : null
     },
-    [camera, raycaster, ndcVec, size]
+    [camera, raycaster, ndcVec, gl]
   )
 
   // Pointer events: drag, click, hover
@@ -367,6 +371,7 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
                 key={layout.id}
                 geometry={sharedGeo}
                 material={material}
+                frustumCulled={false}
                 position={[centerX, -centerY, baseZ]}
                 rotation={[0, 0, baseRot]}
                 scale={[planeW, planeH, 1]}
@@ -391,12 +396,6 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
 // ---------------------------------------------------------------------------
 
 export default function ExplorativeGallery({ images, onImageClick }: ExplorativeGalleryProps) {
-  const [isTouch, setIsTouch] = useState(false)
-
-  useEffect(() => {
-    setIsTouch(isTouchDevice())
-  }, [])
-
   const vpEdge =
     typeof window !== "undefined"
       ? Math.max(window.innerWidth, window.innerHeight)
@@ -420,7 +419,6 @@ export default function ExplorativeGallery({ images, onImageClick }: Explorative
 
     let stale = false
     let loaded = 0
-    const total = images.length
     const toLoad = images.filter((img) => !textureCache.has(img.id))
 
     if (toLoad.length === 0) {
@@ -451,6 +449,15 @@ export default function ExplorativeGallery({ images, onImageClick }: Explorative
     }
   }, [images])
 
+  // Workaround: Three.js / R3F has an unresolved rendering bug where meshes
+  // near the edges of the orthographic camera frustum sometimes stop drawing
+  // despite being visible and having frustumCulled=false. We oversized the
+  // canvas (175% on the long viewport edge, 150% on the short edge) and
+  // center it so the clipped overflow hides the affected area. The outer div
+  // clips with overflow:hidden, so the user never sees the artefact.
+  const overW = isPortrait ? "175%" : "150%"
+  const overH = isPortrait ? "150%" : "175%"
+
   return (
     <div
       style={{
@@ -464,8 +471,12 @@ export default function ExplorativeGallery({ images, onImageClick }: Explorative
       {imagesPreloaded && (
         <div
           style={{
-            width: "100%",
-            height: "100%",
+            width: overW,
+            height: overH,
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
             opacity: sceneReady ? 1 : 0,
             transition: "opacity 0.4s ease",
           }}
