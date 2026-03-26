@@ -338,6 +338,15 @@ export default function GalleryPageClient() {
   return (
     <TooltipProvider>
       <div className="bg-background pt-gutter min-h-screen pb-[var(--header-height)]">
+        {/* Transparent button to manually trigger the screensaver */}
+        <button
+          type="button"
+          aria-label="Start screensaver"
+          className="fixed top-0 left-0 z-[60] cursor-default"
+          style={{ width: "var(--gutter)", height: "var(--gutter)" }}
+          onClick={() => window.dispatchEvent(new Event("screensaver-start"))}
+        />
+
         {/* Fixed bottom bar — Header + OptionsBar on the same row */}
         <div
           ref={headerRef}

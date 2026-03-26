@@ -57,9 +57,20 @@ function useIdleDetection(
       resetTimer()
     }
 
+    // Manual trigger: mark as idle so the next user interaction fires onActive.
+    // Brief grace period so the triggering click itself doesn't immediately cancel.
+    const handleManualStart = () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current)
+      lastEventTime.current = Date.now()
+      setTimeout(() => {
+        isIdle.current = true
+      }, 200)
+    }
+
     for (const event of INTERACTION_EVENTS) {
       window.addEventListener(event, handleEvent, { passive: true })
     }
+    window.addEventListener("screensaver-start", handleManualStart)
 
     resetTimer()
 
@@ -67,6 +78,7 @@ function useIdleDetection(
       for (const event of INTERACTION_EVENTS) {
         window.removeEventListener(event, handleEvent)
       }
+      window.removeEventListener("screensaver-start", handleManualStart)
       if (timerRef.current !== null) {
         clearTimeout(timerRef.current)
         timerRef.current = null
@@ -414,6 +426,15 @@ export function ScreenSaver({
   }, [])
 
   useIdleDetection(idleTimeout, enabled, [mode, filter], onIdle, onActive)
+
+  // Allow manual trigger via custom event
+  useEffect(() => {
+    const handler = () => {
+      if (enabled) onIdle()
+    }
+    window.addEventListener("screensaver-start", handler)
+    return () => window.removeEventListener("screensaver-start", handler)
+  }, [enabled, onIdle])
 
   // Cleanup on unmount
   useEffect(() => {
