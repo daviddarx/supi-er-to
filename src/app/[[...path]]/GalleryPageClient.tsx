@@ -367,7 +367,7 @@ export default function GalleryPageClient() {
         </div>
 
         {/* Gallery — fades between mode/filter changes */}
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" onExitComplete={() => window.scrollTo(0, 0)}>
           <motion.div
             key={`${mode}-${filter}`}
             initial={{ opacity: 0 }}
