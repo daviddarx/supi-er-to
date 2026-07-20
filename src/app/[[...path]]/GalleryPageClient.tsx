@@ -250,12 +250,20 @@ export default function GalleryPageClient() {
     document.documentElement.classList.toggle("dark", next)
   }, [isDarkMode])
 
+  // The image index the carousel opened at, and the one currently being viewed.
+  // Used to align the background to the viewed image on close — but only if the
+  // user actually navigated away from where they opened (see closeCarousel).
+  const openedIndexRef = useRef(-1)
+  const viewedIndexRef = useRef(-1)
+
   /**
    * Opens the carousel at a given index within the current filtered set,
    * and pushes the image ID to the URL for deep linking.
    */
   const openCarousel = useCallback(
     (index: number) => {
+      openedIndexRef.current = index
+      viewedIndexRef.current = index
       setCarouselIndex(index)
       setCarouselOpen(true)
       const imageId = filteredImages[index]?.id
@@ -264,10 +272,39 @@ export default function GalleryPageClient() {
     [filteredImages, mode, filter]
   )
 
+  /**
+   * Closes the overlay and, once it has faded out, smoothly scrolls the
+   * background so the image the user was last viewing is in view — sparing them
+   * from scrolling back to where they started after paging through many pictures.
+   *
+   * YARL invokes this `close` prop only after its fade-out completes, so the
+   * scroll animates on a now-empty page (the "at the end" reveal). Skipped when
+   * the viewed image is the one they opened (they never navigated), so a quick
+   * open/close leaves the page exactly where it was.
+   *
+   * Only Classic and Grid render a scrollable list of discrete images to align
+   * to; Explorative (infinite drag canvas) and Experimental (no carousel) don't.
+   * Works because globals.css forces `overflow: auto` on html/body, defeating
+   * YARL's scroll lock.
+   */
   const closeCarousel = useCallback(() => {
     setCarouselOpen(false)
     pushCarouselUrl(mode, null, filter)
-  }, [mode, filter])
+
+    const index = viewedIndexRef.current
+    if (index === openedIndexRef.current) return
+    if (mode !== "classic" && mode !== "grid") return
+    const imageId = filteredImages[index]?.id
+    if (!imageId) return
+    const el = document.querySelector<HTMLElement>(`[data-image-id="${CSS.escape(imageId)}"]`)
+    el?.scrollIntoView({ block: "center", behavior: "smooth" })
+  }, [mode, filter, filteredImages])
+
+  // Records the image currently shown in the overlay as the user navigates
+  // prev/next. Silent — the background only moves on close, not during viewing.
+  const handleCarouselView = useCallback((index: number) => {
+    viewedIndexRef.current = index
+  }, [])
 
   /**
    * Switches gallery mode via local state + pushState (no full navigation).
@@ -390,6 +427,7 @@ export default function GalleryPageClient() {
           isOpen={carouselOpen}
           onClose={closeCarousel}
           isDarkMode={isDarkMode}
+          onViewChange={handleCarouselView}
         />
 
         {/* Screen saver — idle-activated displacement shader overlay */}

@@ -80,6 +80,7 @@ export function LoadableImage({
   return (
     <div
       ref={containerRef}
+      data-image-id={id}
       onClick={onClick}
       onMouseEnter={
         onClick ? () => window.dispatchEvent(new CustomEvent("image-hover-start")) : undefined

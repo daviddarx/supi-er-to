@@ -24,6 +24,12 @@ interface CarouselOverlayProps {
   isOpen: boolean
   onClose: () => void
   isDarkMode: boolean
+  /**
+   * Fired whenever the visible slide changes (initial open + every prev/next).
+   * Used to record which image is being viewed so the background can be aligned
+   * to it on close.
+   */
+  onViewChange?: (index: number) => void
 }
 
 // ─── FadeSlide ────────────────────────────────────────────────────────────────
@@ -163,6 +169,7 @@ export function CarouselOverlay({
   isOpen,
   onClose,
   isDarkMode,
+  onViewChange,
 }: CarouselOverlayProps) {
   const slides = useMemo(
     () =>
@@ -213,7 +220,10 @@ export function CarouselOverlay({
       carousel={{ padding: "5%" }}
       animation={{ swipe: 300 }}
       controller={{ closeOnBackdropClick: true, closeOnPullUp: false, closeOnPullDown: false }}
-      on={{ zoom: ({ zoom }) => setIsZoomed(zoom > 1) }}
+      on={{
+        zoom: ({ zoom }) => setIsZoomed(zoom > 1),
+        view: ({ index }) => onViewChange?.(index),
+      }}
     />
   )
 }
