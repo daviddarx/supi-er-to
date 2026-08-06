@@ -1,0 +1,25 @@
+# Worktrunk project config — https://worktrunk.dev
+#
+# Each worktree gets its own Next.js dev server on a port derived from the
+# branch name (stable across machines and restarts).
+
+# Array-of-tables = sequential stages. Table form would run them concurrently,
+# which would start the server before deps exist.
+
+[[post-start]]
+copy = "wt step copy-ignored"
+
+[[post-start]]
+deps = "npm install"
+
+[[post-start]]
+# `tether` ties the server's lifetime to the worktree: removing the worktree
+# kills the whole process tree, so no orphaned `next dev` processes pile up.
+server = "wt step tether -- npm run dev -- --port {{ branch | hash_port }}"
+
+[list]
+url = "http://localhost:{{ branch | hash_port }}"
+
+[aliases]
+open = "open http://localhost:{{ branch | hash_port }}"
+logs = "tail -f \"$(wt config state logs get --hook=project:post-start:server)\""

@@ -1,0 +1,7 @@
+# Limits what `wt step copy-ignored` copies into a new worktree.
+# Gitignored files are only copied if they ALSO match a pattern here.
+# Keeps image-sources/ (hi-res JPGs) and .next/ out of every worktree.
+
+node_modules/
+.env
+.env.local
