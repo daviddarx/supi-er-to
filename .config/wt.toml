@@ -22,4 +22,11 @@ url = "http://localhost:{{ branch | hash_port }}"
 
 [aliases]
 open = "open http://localhost:{{ branch | hash_port }}"
-logs = "tail -f \"$(wt config state logs get --hook=project:post-start:server)\""
+# Tails the most recently written dev-server log. Picking the newest by
+# mtime rather than matching the branch name avoids the feat-test-1 /
+# feat-test-10 prefix collision.
+logs = '''tail -f "$(wt config state logs --format=json | jq -r '[.hook_output[] | select(.source == "project" and .hook_type == "post-start" and .name == "server")] | sort_by(.modified_at) | last | .path')"'''
+
+# pkill exits 1 when nothing matched; `|| true` keeps `wt stop` from
+# reporting failure when the server is already down.
+stop = "pkill -f 'next dev --port {{ branch | hash_port }}' || true"
