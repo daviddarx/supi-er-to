@@ -79,8 +79,12 @@ const FOCUS_SWIPE_SPEED = 0.005
 /** Total touch travel (px) before a gesture counts as a drag instead of a tap. */
 const DRAG_THRESHOLD = 8
 
-/** Below this aspect ratio, opposite-side walls are hidden when focused (not enough room). */
-const OCCLUDE_ASPECT_THRESHOLD = 3 / 2
+/**
+ * Frustum padding when testing whether a wall blocks the focused image.
+ * Slightly over-hiding is invisible (those walls are off-screen anyway) whereas
+ * under-hiding leaves a wall standing in front of the picture.
+ */
+const OCCLUDE_MARGIN = 1.1
 
 /** Auto-drift speed: world units per second the camera moves into the corridor. */
 const AUTO_DRIFT_SPEED = 1.5
@@ -287,9 +291,6 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
   const returnRotationY = useRef(0)
   const isFocusing = useRef(false)
   const isReturning = useRef(false)
-  /** Occlusion set that only updates once the camera has settled on the new focus target. */
-  const settledOccluded = useRef<Set<number>>(new Set())
-  const focusSettled = useRef(true)
 
   /**
    * Continuous position along the focused side's wall row, as a fractional index
@@ -311,6 +312,11 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
   const poseUp = useRef(new THREE.Vector3())
   const blendPos = useRef(new THREE.Vector3())
   const blendQuat = useRef(new THREE.Quaternion())
+  const viewFwd = useRef(new THREE.Vector3())
+  const viewRight = useRef(new THREE.Vector3())
+  const viewUp = useRef(new THREE.Vector3())
+  const relVec = useRef(new THREE.Vector3())
+  const wallCenter = useRef(new THREE.Vector3())
   const twistQuat = useRef(new THREE.Quaternion())
   const mouseLookQuat = useRef(new THREE.Quaternion())
   const corridorQuat = useRef(new THREE.Quaternion())
@@ -403,6 +409,65 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     outQuat.setFromRotationMatrix(poseMatrix.current)
   }
 
+  /** World-space center of a wall, accounting for its row twist and corridor looping. */
+  const getWallCenter = (index: number, camZ: number, out: THREE.Vector3) => {
+    const w = walls[index]
+    const effZ = w.z + getLoopOffset(w.z, camZ)
+    out.set(w.position[0] * Math.cos(w.twistAngle), w.position[0] * Math.sin(w.twistAngle), effZ)
+  }
+
+  /** Bounding radius of a wall face — catches walls whose center sits just off-screen. */
+  const getWallRadius = (index: number) => {
+    const w = walls[index]
+    const halfW = (WALL_HEIGHT * (w.image.width / w.image.height)) / 2 + w.border
+    return Math.hypot(halfW, WALL_HEIGHT / 2 + w.border)
+  }
+
+  /**
+   * Collect every opposite-side wall standing between a camera pose and the
+   * focused image.
+   *
+   * In portrait the image only fits at a distance greater than the corridor is
+   * wide, so the camera backs out through the opposite wall row and one or more
+   * of those walls end up in front of the picture. Which ones can't be guessed
+   * from Z proximity — the camera is also offset along Z by the wall normal, so
+   * the blocker is often not the nearest wall, and there is frequently more than
+   * one. Testing the actual view frustum handles every case, and in landscape it
+   * naturally selects nothing: there the camera stays inside the corridor, which
+   * leaves the opposite row behind it.
+   */
+  const collectBlockingWalls = (
+    pos: THREE.Vector3,
+    quat: THREE.Quaternion,
+    focusedIndex: number,
+    oppositeIndices: number[],
+    camZ: number,
+    out: Set<number>
+  ) => {
+    const perspCam = camera as THREE.PerspectiveCamera
+    const tanV = Math.tan((perspCam.fov * Math.PI) / 180 / 2) * OCCLUDE_MARGIN
+    const tanH = tanV * perspCam.aspect
+
+    viewFwd.current.set(0, 0, -1).applyQuaternion(quat)
+    viewRight.current.set(1, 0, 0).applyQuaternion(quat)
+    viewUp.current.set(0, 1, 0).applyQuaternion(quat)
+
+    getWallCenter(focusedIndex, camZ, wallCenter.current)
+    const focusDepth = relVec.current.subVectors(wallCenter.current, pos).dot(viewFwd.current)
+
+    for (const i of oppositeIndices) {
+      getWallCenter(i, camZ, wallCenter.current)
+      relVec.current.subVectors(wallCenter.current, pos)
+      const depth = relVec.current.dot(viewFwd.current)
+      // Behind the camera, or no nearer than the image being viewed
+      if (depth <= 0.5 || depth >= focusDepth - 0.5) continue
+      const radius = getWallRadius(i)
+      if (Math.abs(relVec.current.dot(viewRight.current)) - radius >= tanH * depth) continue
+      if (Math.abs(relVec.current.dot(viewUp.current)) - radius >= tanV * depth) continue
+      out.add(i)
+    }
+  }
+
   /**
    * Rebuild focusTarget/focusQuat from the current fractional focusPos, blending
    * between the two walls it sits between. Runs every frame while focused.
@@ -453,7 +518,6 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     focusedWall.current = wallIndex
     isFocusing.current = true
     isReturning.current = false
-    focusSettled.current = false
     window.dispatchEvent(new CustomEvent("image-zoomed-in", { detail: { isLeft: wall.isLeft } }))
   }
 
@@ -476,7 +540,6 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     isFocusing.current = false
     isReturning.current = true
     focusedWall.current = null
-    settledOccluded.current = new Set()
   }
 
   // Keyboard handler: Escape to unfocus, arrows to navigate between walls
@@ -566,9 +629,6 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
         const next = focusPos.current + deltaX * FOCUS_SWIPE_SPEED * direction
         focusPos.current = Math.max(0, Math.min(sideIndices.length - 1, next))
         focusedWall.current = sideIndices[Math.round(focusPos.current)]
-        // A drag has no discrete transition to cover, and the camera never fully
-        // converges while the finger is moving — let occlusion track it live
-        focusSettled.current = true
         return
       }
 
@@ -640,14 +700,6 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
 
       // Slerp toward precomputed quaternion — stable Z-roll, no wobble
       camera.quaternion.slerp(focusQuat.current, FOCUS_LERP)
-
-      // Mark settled once camera converges — allows occluded set to update
-      if (!focusSettled.current) {
-        const dist = camera.position.distanceTo(focusTarget.current)
-        if (dist < 0.15) {
-          focusSettled.current = true
-        }
-      }
     } else if (isReturning.current) {
       // Animate back to corridor center
       const returnTarget = new THREE.Vector3(0, 0, targetZ.current)
@@ -701,35 +753,23 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     // Collect walls sorted by distance to camera for mount priority
     const wallDistances: Array<{ index: number; effectiveZ: number; visible: boolean }> = []
 
-    // On narrow screens, precompute which opposite-side wall to occlude.
-    // During camera transitions between same-side walls, keep the union of
-    // old (settled) + new occluded sets so the old wall stays hidden until
-    // the camera reaches the new focus target.
-    const newOccluded = new Set<number>()
-    if (
-      cam.aspect < OCCLUDE_ASPECT_THRESHOLD &&
-      isFocusing.current &&
-      focusedWall.current !== null
-    ) {
+    // Hide any opposite-side wall standing between the viewer and the focused
+    // image. Measured against the focus *target* rather than the live camera, so
+    // the blockers start fading the moment a picture is picked and are gone by
+    // the time the camera arrives — and, while swiping, the set tracks the finger.
+    // Clearing on unfocus fades the whole side back in for the corridor view.
+    const occludedWalls = new Set<number>()
+    if (isFocusing.current && focusedWall.current !== null) {
       const fw = walls[focusedWall.current]
-      const oppositeIndices = fw.isLeft ? rightIndices : leftIndices
-      let closestPos = 0
-      let closestDist = Infinity
-      for (let p = 0; p < oppositeIndices.length; p++) {
-        const dist = Math.abs(walls[oppositeIndices[p]].z - fw.z)
-        if (dist < closestDist) {
-          closestDist = dist
-          closestPos = p
-        }
-      }
-      newOccluded.add(oppositeIndices[closestPos])
+      collectBlockingWalls(
+        focusTarget.current,
+        focusQuat.current,
+        focusedWall.current,
+        fw.isLeft ? rightIndices : leftIndices,
+        camZ,
+        occludedWalls
+      )
     }
-
-    // Once settled, update the settled set; while moving, use the union
-    if (focusSettled.current) {
-      settledOccluded.current = newOccluded
-    }
-    const occludedWalls = new Set([...settledOccluded.current, ...newOccluded])
 
     for (let i = 0; i < walls.length; i++) {
       const wallZ = walls[i].z
