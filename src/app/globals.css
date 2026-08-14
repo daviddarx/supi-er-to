@@ -96,6 +96,10 @@
 /* Detect hover-capable devices */
 @custom-variant has-hover (@media (hover: hover));
 
+/* Phones held in landscape — very little vertical room. The height cap keeps
+   tablets and desktops (also "landscape") out of this variant. */
+@custom-variant mobile-landscape (@media (orientation: landscape) and (max-height: 500px));
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
