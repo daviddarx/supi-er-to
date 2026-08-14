@@ -70,6 +70,13 @@ const FOCUS_PADDING = 1.3
 const FOCUS_LERP = 0.04
 
 /**
+ * Lerp speed once a swipe is driving the focused camera — twice FOCUS_LERP, so
+ * the camera trails the finger with half the lag. The tap-to-focus fly-in keeps
+ * the slower FOCUS_LERP.
+ */
+const FOCUS_SWIPE_LERP = FOCUS_LERP * 2
+
+/**
  * Fractional wall indices travelled per pixel of horizontal swipe while focused.
  * Tuned so a full-width phone swipe covers roughly two images, matching the
  * responsiveness of the corridor's vertical swipe.
@@ -305,6 +312,8 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
   const focusLoopOffset = useRef(0)
   /** True once a touch has travelled far enough to be a drag, so it can't read as a tap. */
   const touchDragged = useRef(false)
+  /** True once a swipe has driven this focus — selects the tighter easing. */
+  const focusDragActive = useRef(false)
 
   // Scratch objects for quaternion computation
   const poseMatrix = useRef(new THREE.Matrix4())
@@ -518,6 +527,7 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     focusedWall.current = wallIndex
     isFocusing.current = true
     isReturning.current = false
+    focusDragActive.current = false
     window.dispatchEvent(new CustomEvent("image-zoomed-in", { detail: { isLeft: wall.isLeft } }))
   }
 
@@ -540,6 +550,7 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     isFocusing.current = false
     isReturning.current = true
     focusedWall.current = null
+    focusDragActive.current = false
   }
 
   // Keyboard handler: Escape to unfocus, arrows to navigate between walls
@@ -629,6 +640,9 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
         const next = focusPos.current + deltaX * FOCUS_SWIPE_SPEED * direction
         focusPos.current = Math.max(0, Math.min(sideIndices.length - 1, next))
         focusedWall.current = sideIndices[Math.round(focusPos.current)]
+        // Tighten the easing for the rest of this focus, so the camera stays
+        // close to the finger instead of trailing at fly-in speed
+        focusDragActive.current = true
         return
       }
 
@@ -695,11 +709,12 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
       // fractional focusPos blends smoothly between neighbouring walls
       updateFocusPoseFromPosition()
 
-      // Animate camera to focused wall
-      camera.position.lerp(focusTarget.current, FOCUS_LERP)
+      // Animate camera to focused wall — tighter easing once a swipe is driving it
+      const focusLerp = focusDragActive.current ? FOCUS_SWIPE_LERP : FOCUS_LERP
+      camera.position.lerp(focusTarget.current, focusLerp)
 
       // Slerp toward precomputed quaternion — stable Z-roll, no wobble
-      camera.quaternion.slerp(focusQuat.current, FOCUS_LERP)
+      camera.quaternion.slerp(focusQuat.current, focusLerp)
     } else if (isReturning.current) {
       // Animate back to corridor center
       const returnTarget = new THREE.Vector3(0, 0, targetZ.current)
