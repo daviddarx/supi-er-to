@@ -86,7 +86,10 @@ export default function GalleryPageClient() {
   const [carouselIndex, setCarouselIndex] = useState(0)
   const [newPieceSheetOpen, setNewPieceSheetOpen] = useState(false)
 
-  // Measure the fixed header bar so we can add matching bottom padding
+  // Measure the fixed header bar so we can add matching bottom padding.
+  // The bar is display:none on phones in landscape, where offsetHeight is 0 —
+  // ResizeObserver doesn't reliably report that transition, so we also listen
+  // for resize/orientation changes.
   const headerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = headerRef.current
@@ -97,7 +100,13 @@ export default function GalleryPageClient() {
     update()
     const observer = new ResizeObserver(update)
     observer.observe(el)
-    return () => observer.disconnect()
+    window.addEventListener("resize", update)
+    window.addEventListener("orientationchange", update)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", update)
+      window.removeEventListener("orientationchange", update)
+    }
   }, [])
 
   // In classic mode, hide the header bar background when the viewport is wider
@@ -384,10 +393,11 @@ export default function GalleryPageClient() {
           onClick={() => window.dispatchEvent(new Event("screensaver-start"))}
         />
 
-        {/* Fixed bottom bar — Header + OptionsBar on the same row */}
+        {/* Fixed bottom bar — Header + OptionsBar on the same row.
+            Hidden entirely on phones in landscape (see the mobile-landscape variant). */}
         <div
           ref={headerRef}
-          className="header-bar no-scroll-compensate fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between pr-[var(--scrollbar-width,0px)] max-md:flex-col max-md:items-stretch"
+          className="header-bar no-scroll-compensate mobile-landscape:hidden fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between pr-[var(--scrollbar-width,0px)] max-md:flex-col max-md:items-stretch"
         >
           <Header />
           <OptionsBar
