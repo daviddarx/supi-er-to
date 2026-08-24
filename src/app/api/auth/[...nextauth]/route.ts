@@ -12,6 +12,11 @@ import GithubProvider from "next-auth/providers/github"
 export const authOptions: NextAuthOptions = {
   providers: [
     GithubProvider({
+      // GitHub enabled RFC 9207 in April 2026 and now returns an `iss` param on
+      // the OAuth callback. openid-client then requires a configured issuer and
+      // otherwise throws "issuer must be configured on the issuer", surfacing as
+      // a generic sign-in error. next-auth v4 ships no issuer for GitHub.
+      issuer: "https://github.com/login/oauth",
       clientId: process.env.GITHUB_ID!,
       clientSecret: process.env.GITHUB_SECRET!,
     }),
