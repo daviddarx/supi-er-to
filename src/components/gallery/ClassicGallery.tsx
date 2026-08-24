@@ -10,12 +10,13 @@ interface ClassicGalleryProps {
 
 /**
  * Classic gallery mode — full-width images stacked vertically, newest first.
- * Max 1200px centered. 15vh gap between images and top padding.
+ * Max 1200px centered. On desktop, 10vh gap between images plus gutter padding;
+ * on mobile the images run edge to edge with a 1px gap and no vertical padding.
  * Clicking an image opens the fullscreen carousel.
  */
 export default function ClassicGallery({ images, onImageClick }: ClassicGalleryProps) {
   return (
-    <main className="px-gutter gap-gutter max-md:pb-gutter pt-gutter mx-auto flex max-w-300 flex-col max-md:pt-0 md:gap-[10vh] md:pt-[10vh] md:pb-[10vh]">
+    <main className="md:px-gutter mx-auto flex max-w-300 flex-col gap-px md:gap-[10vh] md:pt-[10vh] md:pb-[10vh]">
       {images.map((image, index) => (
         <LoadableImage
           key={image.id}

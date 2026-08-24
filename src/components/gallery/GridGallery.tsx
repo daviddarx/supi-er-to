@@ -14,6 +14,7 @@ interface GridGalleryProps {
  * Grid gallery mode — masonry layout using react-masonry-css.
  * Column count is computed dynamically from the container width (~500px per column).
  * Minimum 2 columns at all screen sizes. 1px gap between images.
+ * Gutter padding is desktop-only — on mobile the grid runs edge to edge.
  * The masonry grid CSS lives in globals.css (not duplicated here).
  */
 export default function GridGallery({ images, onImageClick }: GridGalleryProps) {
@@ -40,7 +41,7 @@ export default function GridGallery({ images, onImageClick }: GridGalleryProps) 
   return (
     <div
       ref={containerRef}
-      className="px-gutter pb-gutter md:before:bg-background md:before:h-gutter md:before:pointer-events-none md:before:fixed md:before:top-0 md:before:right-0 md:before:left-0 md:before:z-10 md:before:content-['']"
+      className="md:px-gutter md:pb-gutter md:before:bg-background md:before:h-gutter md:before:pointer-events-none md:before:fixed md:before:top-0 md:before:right-0 md:before:left-0 md:before:z-10 md:before:content-['']"
     >
       <Masonry
         breakpointCols={columnCount}

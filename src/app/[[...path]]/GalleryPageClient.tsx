@@ -383,7 +383,7 @@ export default function GalleryPageClient() {
 
   return (
     <TooltipProvider>
-      <div className="bg-background pt-gutter min-h-screen pb-[var(--header-height)]">
+      <div className="bg-background md:pt-gutter min-h-screen pb-[var(--header-height)]">
         {/* Transparent button to manually trigger the screensaver */}
         <button
           type="button"
