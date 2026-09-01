@@ -130,6 +130,11 @@ async function capturePageSnapshot(): Promise<HTMLCanvasElement | null> {
   if (canvasElements.length > 0) {
     const ctx = result.getContext("2d")
     if (ctx) {
+      // html2canvas leaves its own `scale(devicePixelRatio)` transform on the
+      // context (it never restores it), so drawing here would apply the DPR a
+      // second time — magnifying the canvas and cropping it. Reset to identity
+      // and work in device pixels.
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
       for (const canvasEl of canvasElements) {
         const rect = canvasEl.getBoundingClientRect()
         ctx.drawImage(
