@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import * as THREE from "three"
 import { getImageSrc } from "@/lib/images"
@@ -44,6 +44,11 @@ const ZOOM_IN_SCREEN_FRACTION = 0.5
 // …except on phones, where pictures already render wider than that at rest, so
 // the ceiling would sit below 1 and forbid zooming in at all.
 const ZOOM_IN_FLOOR = 1.8
+
+// Announces gesture boundaries to the page, which slides the bottom bar out of
+// the way while the scene is being handled
+const emitInteraction = (phase: "start" | "end") =>
+  window.dispatchEvent(new Event(`gallery-interaction-${phase}`))
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
@@ -135,6 +140,16 @@ function isTouchDevice() {
 
 const textureCache = new Map<string, THREE.Texture>()
 
+// Module constants, not inline literals: R3F compares these by identity on every
+// Canvas render, so fresh objects make it reconfigure needlessly
+const CANVAS_CAMERA = {
+  position: [0, 0, 100] as [number, number, number],
+  zoom: 1,
+  near: 0.1,
+  far: 1000,
+}
+const CANVAS_GL = { antialias: true, alpha: true, preserveDrawingBuffer: true }
+
 // ---------------------------------------------------------------------------
 // Three.js scene
 // ---------------------------------------------------------------------------
@@ -161,6 +176,29 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
   const zoomAnchorRef = useRef<{ x: number; y: number } | null>(null)
   const rotationGroupRef = useRef<THREE.Group>(null!)
   const rotationRef = useRef(0)
+  // Gesture scratch state. Held in a ref rather than the effect's closure so a
+  // re-subscribe mid-gesture (any parent re-render can cause one) doesn't throw
+  // away a drag that's already in progress.
+  const gestureRef = useRef({
+    isDragging: false,
+    hasMoved: false,
+    startX: 0,
+    startY: 0,
+    startOffsetX: 0,
+    startOffsetY: 0,
+    lastX: 0,
+    lastY: 0,
+    smoothVx: 0,
+    smoothVy: 0,
+    hoveredAtDown: null as string | null,
+    pinchDist: 0,
+    pinchMidX: 0,
+    pinchMidY: 0,
+    pinchAngle: 0,
+    twistTravel: 0,
+    twisting: false,
+    multiTouch: false,
+  })
 
   const imageMap = useMemo(() => Object.fromEntries(images.map((img) => [img.id, img])), [images])
 
@@ -278,28 +316,11 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     canvas.style.touchAction = "none"
     canvas.style.cursor = "grab"
 
-    let isDragging = false
-    let hasMoved = false
-    let startX = 0
-    let startY = 0
-    let startOffsetX = 0
-    let startOffsetY = 0
-    let lastX = 0
-    let lastY = 0
-    let smoothVx = 0
-    let smoothVy = 0
-    let hoveredAtDown: string | null = null
-    let pinchDist = 0
-    let pinchMidX = 0
-    let pinchMidY = 0
-    let pinchAngle = 0
-    let twistTravel = 0
-    let twisting = false
-    let multiTouch = false
+    const g = gestureRef.current
 
     const cancelDrag = () => {
-      isDragging = false
-      hasMoved = false
+      g.isDragging = false
+      g.hasMoved = false
       velocityRef.current = { x: 0, y: 0 }
       canvas.style.cursor = "grab"
     }
@@ -310,22 +331,23 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     }
 
     const onPointerDown = (e: PointerEvent) => {
-      if (multiTouch) return
+      if (g.multiTouch) return
+      emitInteraction("start")
       if (e.pointerType === "touch") isTouchRef.current = true
       // A drag rewrites the offset from its own origin each move, which would
       // fight the anchor shift of a still-easing zoom — settle it instead
       targetZoomRef.current = zoomRef.current
-      isDragging = true
-      hasMoved = false
-      hoveredAtDown = hoveredIdRef.current
-      startX = e.clientX
-      startY = e.clientY
-      startOffsetX = offsetRef.current.x
-      startOffsetY = offsetRef.current.y
-      lastX = e.clientX
-      lastY = e.clientY
-      smoothVx = 0
-      smoothVy = 0
+      g.isDragging = true
+      g.hasMoved = false
+      g.hoveredAtDown = hoveredIdRef.current
+      g.startX = e.clientX
+      g.startY = e.clientY
+      g.startOffsetX = offsetRef.current.x
+      g.startOffsetY = offsetRef.current.y
+      g.lastX = e.clientX
+      g.lastY = e.clientY
+      g.smoothVx = 0
+      g.smoothVy = 0
 
       velocityRef.current = { x: 0, y: 0 }
 
@@ -339,28 +361,28 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     }
 
     const onPointerMove = (e: PointerEvent) => {
-      if (multiTouch) return
-      if (isDragging) {
-        const totalDx = e.clientX - startX
-        const totalDy = e.clientY - startY
+      if (g.multiTouch) return
+      if (g.isDragging) {
+        const totalDx = e.clientX - g.startX
+        const totalDy = e.clientY - g.startY
         if (Math.abs(totalDx) > TAP_THRESHOLD || Math.abs(totalDy) > TAP_THRESHOLD) {
-          hasMoved = true
+          g.hasMoved = true
         }
 
-        const frameDx = e.clientX - lastX
-        const frameDy = e.clientY - lastY
-        smoothVx = smoothVx * 0.7 + frameDx * 0.3
-        smoothVy = smoothVy * 0.7 + frameDy * 0.3
-        lastX = e.clientX
-        lastY = e.clientY
+        const frameDx = e.clientX - g.lastX
+        const frameDy = e.clientY - g.lastY
+        g.smoothVx = g.smoothVx * 0.7 + frameDx * 0.3
+        g.smoothVy = g.smoothVy * 0.7 + frameDy * 0.3
+        g.lastX = e.clientX
+        g.lastY = e.clientY
 
         // Pointer deltas are CSS pixels, the offset is world units — and one
         // CSS pixel covers 1/zoom world units, so panning must scale with zoom.
         // The field can also be twisted, so the delta turns back through -theta.
         const c = Math.cos(rotationRef.current)
         const sn = Math.sin(rotationRef.current)
-        offsetRef.current.x = startOffsetX + (c * totalDx - sn * totalDy) / zoomRef.current
-        offsetRef.current.y = startOffsetY + (sn * totalDx + c * totalDy) / zoomRef.current
+        offsetRef.current.x = g.startOffsetX + (c * totalDx - sn * totalDy) / zoomRef.current
+        offsetRef.current.y = g.startOffsetY + (sn * totalDx + c * totalDy) / zoomRef.current
       } else if (!isTouchRef.current) {
         const newId = doRaycast(e.clientX, e.clientY)
         if (newId !== hoveredIdRef.current) {
@@ -376,22 +398,24 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     }
 
     const onPointerUp = (e: PointerEvent) => {
-      if (multiTouch) {
-        isDragging = false
+      if (g.multiTouch) {
+        g.isDragging = false
         return
       }
-      if (!isDragging) return
-      isDragging = false
+      if (!g.isDragging) return
+      g.isDragging = false
       canvas.style.cursor = hoveredIdRef.current ? "pointer" : "grab"
 
-      if (!hasMoved) {
-        const imageId = hoveredAtDown ?? doRaycast(e.clientX, e.clientY)
+      emitInteraction("end")
+
+      if (!g.hasMoved) {
+        const imageId = g.hoveredAtDown ?? doRaycast(e.clientX, e.clientY)
         if (imageId) {
           const index = images.findIndex((img) => img.id === imageId)
           if (index !== -1) onImageClick(index)
         }
       } else {
-        velocityRef.current = { x: smoothVx, y: smoothVy }
+        velocityRef.current = { x: g.smoothVx, y: g.smoothVy }
       }
     }
 
@@ -413,21 +437,22 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length < 2) return
-      multiTouch = true
+      g.multiTouch = true
+      emitInteraction("start")
       cancelDrag()
       const [a, b] = [e.touches[0], e.touches[1]]
-      pinchDist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
-      pinchMidX = (a.clientX + b.clientX) / 2
-      pinchMidY = (a.clientY + b.clientY) / 2
-      pinchAngle = Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX)
-      twistTravel = 0
-      twisting = false
+      g.pinchDist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
+      g.pinchMidX = (a.clientX + b.clientX) / 2
+      g.pinchMidY = (a.clientY + b.clientY) / 2
+      g.pinchAngle = Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX)
+      g.twistTravel = 0
+      g.twisting = false
     }
 
     const onTouchMove = (e: TouchEvent) => {
       if (e.touches.length < 2) return
       e.preventDefault()
-      multiTouch = true
+      g.multiTouch = true
 
       const [a, b] = [e.touches[0], e.touches[1]]
       const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
@@ -440,39 +465,43 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
       const anchorY = midY - rect.top
       zoomAnchorRef.current = { x: anchorX, y: anchorY }
 
-      if (pinchDist > 0) {
+      if (g.pinchDist > 0) {
         // Spread/squeeze scales, and the midpoint's travel pans — applied in the
         // same frame so a pinch zooms and moves the field at once. Zoom goes on
         // directly rather than through the eased target, so it tracks the fingers.
         const { min, max } = zoomBoundsRef.current
-        applyZoom(clamp(zoomRef.current * (dist / pinchDist), min, max), anchorX, anchorY)
+        applyZoom(clamp(zoomRef.current * (dist / g.pinchDist), min, max), anchorX, anchorY)
         targetZoomRef.current = zoomRef.current
-        panByWorldDelta((midX - pinchMidX) / zoomRef.current, -(midY - pinchMidY) / zoomRef.current)
+        panByWorldDelta(
+          (midX - g.pinchMidX) / zoomRef.current,
+          -(midY - g.pinchMidY) / zoomRef.current
+        )
 
         // Twist. Normalised across the +/-PI wrap so the angle can't jump a full
         // turn, and negated because the screen's y runs down while three's runs up
-        let dAngle = angle - pinchAngle
+        let dAngle = angle - g.pinchAngle
         if (dAngle > Math.PI) dAngle -= 2 * Math.PI
         else if (dAngle < -Math.PI) dAngle += 2 * Math.PI
         // Signed, so jitter back and forth cancels instead of creeping up on
         // the threshold the way accumulated absolute travel would
-        twistTravel += dAngle
-        if (!twisting && Math.abs(twistTravel) > ROTATE_THRESHOLD) twisting = true
-        if (twisting) rotationRef.current -= dAngle
+        g.twistTravel += dAngle
+        if (!g.twisting && Math.abs(g.twistTravel) > ROTATE_THRESHOLD) g.twisting = true
+        if (g.twisting) rotationRef.current -= dAngle
       }
-      pinchDist = dist
-      pinchAngle = angle
-      pinchMidX = midX
-      pinchMidY = midY
+      g.pinchDist = dist
+      g.pinchAngle = angle
+      g.pinchMidX = midX
+      g.pinchMidY = midY
     }
 
     const onTouchEnd = (e: TouchEvent) => {
       // Stay in multi-touch until every finger is up, so lifting one finger
       // mid-pinch doesn't hand a stale drag origin back to the pan handler
       if (e.touches.length > 0) return
-      multiTouch = false
-      pinchDist = 0
-      twisting = false
+      g.multiTouch = false
+      g.pinchDist = 0
+      g.twisting = false
+      emitInteraction("end")
     }
 
     canvas.addEventListener("wheel", onWheel, { passive: false })
@@ -618,7 +647,7 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function ExplorativeGallery({ images, onImageClick }: ExplorativeGalleryProps) {
+function ExplorativeGallery({ images, onImageClick }: ExplorativeGalleryProps) {
   const vpEdge =
     typeof window !== "undefined"
       ? Math.max(window.innerWidth, window.innerHeight)
@@ -720,11 +749,7 @@ export default function ExplorativeGallery({ images, onImageClick }: Explorative
             transition: "opacity 0.4s ease",
           }}
         >
-          <Canvas
-            orthographic
-            camera={{ position: [0, 0, 100], zoom: 1, near: 0.1, far: 1000 }}
-            gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
-          >
+          <Canvas orthographic camera={CANVAS_CAMERA} gl={CANVAS_GL}>
             <ExplorativeScene
               images={images}
               layouts={layouts}
@@ -755,3 +780,7 @@ export default function ExplorativeGallery({ images, onImageClick }: Explorative
     </div>
   )
 }
+
+// The page re-renders whenever the bottom bar toggles; without this the whole
+// canvas subtree re-renders mid-gesture and the scene's listeners get rebound.
+export default memo(ExplorativeGallery)
