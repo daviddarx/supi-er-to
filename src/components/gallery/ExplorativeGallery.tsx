@@ -36,6 +36,9 @@ const HOVER_LERP = 0.18
 
 const ZOOM_LERP = 0.15
 const ZOOM_WHEEL_SPEED = 0.0015
+// Twist has to clear this before it engages, so an ordinary pinch zooms
+// cleanly instead of tilting the whole gallery a few degrees
+const ROTATE_THRESHOLD = (10 * Math.PI) / 180
 // Zoomed all the way in, one picture spans this fraction of the screen width…
 const ZOOM_IN_SCREEN_FRACTION = 0.5
 // …except on phones, where pictures already render wider than that at rest, so
@@ -150,6 +153,8 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
   const targetZoomRef = useRef(1)
   const zoomBoundsRef = useRef({ min: 1, max: 1 })
   const zoomAnchorRef = useRef<{ x: number; y: number } | null>(null)
+  const rotationGroupRef = useRef<THREE.Group>(null!)
+  const rotationRef = useRef(0)
 
   const imageMap = useMemo(() => Object.fromEntries(images.map((img) => [img.id, img])), [images])
 
@@ -209,6 +214,16 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     cam.updateProjectionMatrix()
   }, [camera, size])
 
+  // The offset lives in pre-rotation space, so every screen-driven delta has to
+  // be turned back through -theta before it lands there. Drag, inertia, pinch
+  // pan and the zoom anchor all come through here so they can't disagree.
+  const panByWorldDelta = useCallback((wx: number, wy: number) => {
+    const c = Math.cos(rotationRef.current)
+    const sn = Math.sin(rotationRef.current)
+    offsetRef.current.x += c * wx + sn * wy
+    offsetRef.current.y -= -sn * wx + c * wy
+  }, [])
+
   // The one place zoom is applied. Shifts the offset so the content under the
   // anchor (cursor or pinch midpoint) stays put across the scale change.
   const applyZoom = useCallback(
@@ -216,14 +231,13 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
       const prev = zoomRef.current
       if (Math.abs(next - prev) < 1e-6) return
       const shift = 1 / next - 1 / prev
-      offsetRef.current.x += (anchorX - size.width / 2) * shift
-      offsetRef.current.y += (anchorY - size.height / 2) * shift
+      panByWorldDelta((anchorX - size.width / 2) * shift, -(anchorY - size.height / 2) * shift)
       zoomRef.current = next
       const cam = camera as THREE.OrthographicCamera
       cam.zoom = next
       cam.updateProjectionMatrix()
     },
-    [camera, size]
+    [camera, size, panByWorldDelta]
   )
 
   // Raycaster
@@ -265,6 +279,9 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     let pinchDist = 0
     let pinchMidX = 0
     let pinchMidY = 0
+    let pinchAngle = 0
+    let twistTravel = 0
+    let twisting = false
     let multiTouch = false
 
     const cancelDrag = () => {
@@ -325,9 +342,12 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
         lastY = e.clientY
 
         // Pointer deltas are CSS pixels, the offset is world units — and one
-        // CSS pixel covers 1/zoom world units, so panning must scale with zoom
-        offsetRef.current.x = startOffsetX + totalDx / zoomRef.current
-        offsetRef.current.y = startOffsetY + totalDy / zoomRef.current
+        // CSS pixel covers 1/zoom world units, so panning must scale with zoom.
+        // The field can also be twisted, so the delta turns back through -theta.
+        const c = Math.cos(rotationRef.current)
+        const sn = Math.sin(rotationRef.current)
+        offsetRef.current.x = startOffsetX + (c * totalDx - sn * totalDy) / zoomRef.current
+        offsetRef.current.y = startOffsetY + (sn * totalDx + c * totalDy) / zoomRef.current
       } else if (!isTouchRef.current) {
         const newId = doRaycast(e.clientX, e.clientY)
         if (newId !== hoveredIdRef.current) {
@@ -386,6 +406,9 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
       pinchDist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
       pinchMidX = (a.clientX + b.clientX) / 2
       pinchMidY = (a.clientY + b.clientY) / 2
+      pinchAngle = Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX)
+      twistTravel = 0
+      twisting = false
     }
 
     const onTouchMove = (e: TouchEvent) => {
@@ -397,6 +420,7 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
       const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
       const midX = (a.clientX + b.clientX) / 2
       const midY = (a.clientY + b.clientY) / 2
+      const angle = Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX)
 
       const rect = canvas.getBoundingClientRect()
       const anchorX = midX - rect.left
@@ -410,10 +434,21 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
         const { min, max } = zoomBoundsRef.current
         applyZoom(clamp(zoomRef.current * (dist / pinchDist), min, max), anchorX, anchorY)
         targetZoomRef.current = zoomRef.current
-        offsetRef.current.x += (midX - pinchMidX) / zoomRef.current
-        offsetRef.current.y += (midY - pinchMidY) / zoomRef.current
+        panByWorldDelta((midX - pinchMidX) / zoomRef.current, -(midY - pinchMidY) / zoomRef.current)
+
+        // Twist. Normalised across the +/-PI wrap so the angle can't jump a full
+        // turn, and negated because the screen's y runs down while three's runs up
+        let dAngle = angle - pinchAngle
+        if (dAngle > Math.PI) dAngle -= 2 * Math.PI
+        else if (dAngle < -Math.PI) dAngle += 2 * Math.PI
+        // Signed, so jitter back and forth cancels instead of creeping up on
+        // the threshold the way accumulated absolute travel would
+        twistTravel += dAngle
+        if (!twisting && Math.abs(twistTravel) > ROTATE_THRESHOLD) twisting = true
+        if (twisting) rotationRef.current -= dAngle
       }
       pinchDist = dist
+      pinchAngle = angle
       pinchMidX = midX
       pinchMidY = midY
     }
@@ -424,6 +459,7 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
       if (e.touches.length > 0) return
       multiTouch = false
       pinchDist = 0
+      twisting = false
     }
 
     canvas.addEventListener("wheel", onWheel, { passive: false })
@@ -447,7 +483,7 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
       canvas.removeEventListener("pointerup", onPointerUp)
       canvas.removeEventListener("pointerleave", onPointerLeave)
     }
-  }, [gl, doRaycast, images, onImageClick, applyZoom])
+  }, [gl, doRaycast, images, onImageClick, applyZoom, panByWorldDelta])
 
   const readyFired = useRef(false)
   useEffect(() => {
@@ -471,8 +507,7 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     // Inertia — velocity is in CSS pixels, so it scales with zoom like the drag
     const vel = velocityRef.current
     if (Math.abs(vel.x) > 0.5 || Math.abs(vel.y) > 0.5) {
-      offsetRef.current.x += vel.x / zoomRef.current
-      offsetRef.current.y += vel.y / zoomRef.current
+      panByWorldDelta(vel.x / zoomRef.current, -vel.y / zoomRef.current)
       velocityRef.current = { x: vel.x * INERTIA_DECAY, y: vel.y * INERTIA_DECAY }
     } else if (vel.x !== 0 || vel.y !== 0) {
       velocityRef.current = { x: 0, y: 0 }
@@ -483,6 +518,8 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     const wx = ((x % tileW) + tileW) % tileW
     const wy = ((y % tileH) + tileH) % tileH
     groupRef.current.position.set(wx, -wy, 0)
+
+    rotationGroupRef.current.rotation.z = rotationRef.current
 
     // Hover animation: rotation toward 0, scale up, z-index forward
     const hovered = hoveredIdRef.current
@@ -506,44 +543,51 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
   })
 
   return (
-    <group ref={groupRef}>
-      {TILE_OFFSETS.map(([tx, ty]) => (
-        <group key={`${tx}-${ty}`} position={[tx * tileW, -ty * tileH, 0]}>
-          {layouts.map((layout, layoutIndex) => {
-            const image = imageMap[layout.id]
-            if (!image) return null
-            const material = materials.get(layout.id)
-            if (!material) return null
+    // Pivot pair: the outer group spins about the middle of the screen, the
+    // inner one undoes that translation. groupRef keeps carrying the wrapped
+    // offset in its own unrotated space, so the tiling math is untouched.
+    <group ref={rotationGroupRef} position={[size.width / 2, -size.height / 2, 0]}>
+      <group position={[-size.width / 2, size.height / 2, 0]}>
+        <group ref={groupRef}>
+          {TILE_OFFSETS.map(([tx, ty]) => (
+            <group key={`${tx}-${ty}`} position={[tx * tileW, -ty * tileH, 0]}>
+              {layouts.map((layout, layoutIndex) => {
+                const image = imageMap[layout.id]
+                if (!image) return null
+                const material = materials.get(layout.id)
+                if (!material) return null
 
-            const aspect = image.width / image.height
-            const planeW = layout.width
-            const planeH = layout.width / aspect
-            const centerX = layout.x + planeW / 2
-            const centerY = layout.y + planeH / 2
-            const baseRot = -(layout.rotation * Math.PI) / 180
-            const baseZ = layoutIndex * 0.001
+                const aspect = image.width / image.height
+                const planeW = layout.width
+                const planeH = layout.width / aspect
+                const centerX = layout.x + planeW / 2
+                const centerY = layout.y + planeH / 2
+                const baseRot = -(layout.rotation * Math.PI) / 180
+                const baseZ = layoutIndex * 0.001
 
-            return (
-              <mesh
-                key={layout.id}
-                geometry={sharedGeo}
-                material={material}
-                frustumCulled={false}
-                position={[centerX, -centerY, baseZ]}
-                rotation={[0, 0, baseRot]}
-                scale={[planeW, planeH, 1]}
-                userData={{
-                  imageId: layout.id,
-                  baseRotation: baseRot,
-                  baseZ,
-                  planeW,
-                  planeH,
-                }}
-              />
-            )
-          })}
+                return (
+                  <mesh
+                    key={layout.id}
+                    geometry={sharedGeo}
+                    material={material}
+                    frustumCulled={false}
+                    position={[centerX, -centerY, baseZ]}
+                    rotation={[0, 0, baseRot]}
+                    scale={[planeW, planeH, 1]}
+                    userData={{
+                      imageId: layout.id,
+                      baseRotation: baseRot,
+                      baseZ,
+                      planeW,
+                      planeH,
+                    }}
+                  />
+                )
+              })}
+            </group>
+          ))}
         </group>
-      ))}
+      </group>
     </group>
   )
 }
