@@ -48,6 +48,13 @@ export const CAMERA_START_Z = BASE_START_Z
 /** How much each scroll pixel moves the camera target Z position. */
 const SCROLL_SPEED = 0.025
 
+/**
+ * Camera travel needed before the corridor reports a change of direction.
+ * Roughly half a scroll notch — enough to ignore the lerp's tail, small enough
+ * that a deliberate move registers immediately.
+ */
+const DEPTH_THRESHOLD = 1.5
+
 /** Lerp factor for camera easing (0–1, lower = smoother). */
 const CAMERA_LERP = 0.06
 
@@ -267,6 +274,9 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
 
   // Camera scroll state
   const targetZ = useRef(startZ)
+  // Reference point for reporting corridor direction to the page
+  const depthMarkZ = useRef(startZ)
+  const isDeepRef = useRef(false)
   const mouseX = useRef(0)
   const currentRotationY = useRef(0)
   const isTouch = useRef(false)
@@ -762,6 +772,19 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
 
     // Visibility culling + mount management — always runs
     const camZ = camera.position.z
+
+    // Report which way the corridor is moving, so the page can slide its bottom
+    // bar away going in and bring it back coming out. Direction, not absolute
+    // depth: the mark resets on each flip, which doubles as the hysteresis.
+    const travel = camZ - depthMarkZ.current
+    if (Math.abs(travel) > DEPTH_THRESHOLD) {
+      depthMarkZ.current = camZ
+      const deep = travel < 0
+      if (deep !== isDeepRef.current) {
+        isDeepRef.current = deep
+        window.dispatchEvent(new CustomEvent("camera-depth", { detail: { deep } }))
+      }
+    }
     const frontZ = camZ + VISIBLE_BEHIND
     const backZ = camZ - VISIBLE_AHEAD
 

@@ -11,6 +11,7 @@ import { OptionsBar } from "@/components/layout/OptionsBar"
 import { NewPieceSheet } from "@/components/admin/NewPieceSheet"
 import { ZoomCursor } from "@/components/ui/ZoomCursor"
 import { ScreenSaver } from "@/components/ui/ScreenSaver"
+import { useFooterVisibility } from "@/hooks/useFooterVisibility"
 import { fetchImages, filterImages, sortImages, findImageIndex } from "@/lib/images"
 import {
   getModeFromPath,
@@ -85,6 +86,9 @@ export default function GalleryPageClient() {
   const [carouselOpen, setCarouselOpen] = useState(false)
   const [carouselIndex, setCarouselIndex] = useState(0)
   const [newPieceSheetOpen, setNewPieceSheetOpen] = useState(false)
+
+  // Slides the bottom bar out of the way on phones — rules differ per mode
+  const footerHidden = useFooterVisibility(mode)
 
   // Measure the fixed header bar so we can add matching bottom padding.
   // The bar is display:none on phones in landscape, where offsetHeight is 0 —
@@ -394,10 +398,17 @@ export default function GalleryPageClient() {
         />
 
         {/* Fixed bottom bar — Header + OptionsBar on the same row.
-            Hidden entirely on phones in landscape (see the mobile-landscape variant). */}
+            Hidden entirely on phones in landscape (see the mobile-landscape variant).
+            On phones it also slides out of the way while the user is reading or
+            handling the scene — --header-height deliberately stays put so the
+            page padding doesn't reflow underneath it. */}
         <div
           ref={headerRef}
           className="header-bar no-scroll-compensate mobile-landscape:hidden fixed right-0 bottom-0 left-0 z-50 flex items-center justify-between pr-[var(--scrollbar-width,0px)] max-md:flex-col max-md:items-stretch"
+          style={{
+            transform: footerHidden ? "translateY(100%)" : "translateY(0)",
+            transition: "transform 0.3s ease",
+          }}
         >
           <Header />
           <OptionsBar
