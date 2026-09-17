@@ -85,10 +85,11 @@ const FOCUS_SWIPE_LERP = FOCUS_LERP * 2
 
 /**
  * Fractional wall indices travelled per pixel of horizontal swipe while focused.
- * Tuned so a full-width phone swipe covers roughly two images, matching the
- * responsiveness of the corridor's vertical swipe.
+ * A full-width phone swipe covers roughly one image: halved from the corridor's
+ * vertical responsiveness on purpose, so a focused picture stays in front of you
+ * long enough to look at instead of sliding past.
  */
-const FOCUS_SWIPE_SPEED = 0.005
+const FOCUS_SWIPE_SPEED = 0.0025
 
 /** Total touch travel (px) before a gesture counts as a drag instead of a tap. */
 const DRAG_THRESHOLD = 8
