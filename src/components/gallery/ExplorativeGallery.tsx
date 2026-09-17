@@ -34,6 +34,16 @@ const TAP_THRESHOLD = 5
 const INERTIA_DECAY = 0.95
 const HOVER_LERP = 0.18
 
+const ZOOM_LERP = 0.15
+const ZOOM_WHEEL_SPEED = 0.0015
+// Zoomed all the way in, one picture spans this fraction of the screen width…
+const ZOOM_IN_SCREEN_FRACTION = 0.5
+// …except on phones, where pictures already render wider than that at rest, so
+// the ceiling would sit below 1 and forbid zooming in at all.
+const ZOOM_IN_FLOOR = 1.8
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -136,10 +146,39 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
   const velocityRef = useRef({ x: 0, y: 0 })
   const hoveredIdRef = useRef<string | null>(null)
   const isTouchRef = useRef(isTouchDevice())
+  const zoomRef = useRef(1)
+  const targetZoomRef = useRef(1)
+  const zoomBoundsRef = useRef({ min: 1, max: 1 })
+  const zoomAnchorRef = useRef<{ x: number; y: number } | null>(null)
 
   const imageMap = useMemo(() => Object.fromEntries(images.map((img) => [img.id, img])), [images])
 
   const sharedGeo = useMemo(() => new THREE.PlaneGeometry(1, 1), [])
+
+  const avgImageWidth = useMemo(
+    () => (layouts.length ? layouts.reduce((sum, l) => sum + l.width, 0) / layouts.length : 1),
+    [layouts]
+  )
+
+  // Zoom-out floor: the point where a single tile exactly fills the viewport.
+  // Any further out and the layout's repeat becomes visible on screen.
+  useEffect(() => {
+    const computeBounds = () => {
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      const min = Math.min(Math.max(vw / tileW, vh / tileH), 1)
+      const max = Math.max((ZOOM_IN_SCREEN_FRACTION * vw) / avgImageWidth, ZOOM_IN_FLOOR, min)
+      zoomBoundsRef.current = { min, max }
+      targetZoomRef.current = clamp(targetZoomRef.current, min, max)
+      zoomRef.current = clamp(zoomRef.current, min, max)
+      const cam = camera as THREE.OrthographicCamera
+      cam.zoom = zoomRef.current
+      cam.updateProjectionMatrix()
+    }
+    computeBounds()
+    window.addEventListener("resize", computeBounds)
+    return () => window.removeEventListener("resize", computeBounds)
+  }, [camera, tileW, tileH, avgImageWidth])
 
   const materials = useMemo(() => {
     const map = new Map<string, THREE.MeshBasicMaterial>()
@@ -166,8 +205,26 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     cam.right = size.width
     cam.top = 0
     cam.bottom = -size.height
+    cam.zoom = zoomRef.current
     cam.updateProjectionMatrix()
   }, [camera, size])
+
+  // The one place zoom is applied. Shifts the offset so the content under the
+  // anchor (cursor or pinch midpoint) stays put across the scale change.
+  const applyZoom = useCallback(
+    (next: number, anchorX: number, anchorY: number) => {
+      const prev = zoomRef.current
+      if (Math.abs(next - prev) < 1e-6) return
+      const shift = 1 / next - 1 / prev
+      offsetRef.current.x += (anchorX - size.width / 2) * shift
+      offsetRef.current.y += (anchorY - size.height / 2) * shift
+      zoomRef.current = next
+      const cam = camera as THREE.OrthographicCamera
+      cam.zoom = next
+      cam.updateProjectionMatrix()
+    },
+    [camera, size]
+  )
 
   // Raycaster
   const raycaster = useMemo(() => new THREE.Raycaster(), [])
@@ -205,9 +262,29 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     let smoothVx = 0
     let smoothVy = 0
     let hoveredAtDown: string | null = null
+    let pinchDist = 0
+    let pinchMidX = 0
+    let pinchMidY = 0
+    let multiTouch = false
+
+    const cancelDrag = () => {
+      isDragging = false
+      hasMoved = false
+      velocityRef.current = { x: 0, y: 0 }
+      canvas.style.cursor = "grab"
+    }
+
+    const zoomBy = (factor: number) => {
+      const { min, max } = zoomBoundsRef.current
+      targetZoomRef.current = clamp(targetZoomRef.current * factor, min, max)
+    }
 
     const onPointerDown = (e: PointerEvent) => {
+      if (multiTouch) return
       if (e.pointerType === "touch") isTouchRef.current = true
+      // A drag rewrites the offset from its own origin each move, which would
+      // fight the anchor shift of a still-easing zoom — settle it instead
+      targetZoomRef.current = zoomRef.current
       isDragging = true
       hasMoved = false
       hoveredAtDown = hoveredIdRef.current
@@ -232,6 +309,7 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     }
 
     const onPointerMove = (e: PointerEvent) => {
+      if (multiTouch) return
       if (isDragging) {
         const totalDx = e.clientX - startX
         const totalDy = e.clientY - startY
@@ -246,8 +324,10 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
         lastX = e.clientX
         lastY = e.clientY
 
-        offsetRef.current.x = startOffsetX + totalDx
-        offsetRef.current.y = startOffsetY + totalDy
+        // Pointer deltas are CSS pixels, the offset is world units — and one
+        // CSS pixel covers 1/zoom world units, so panning must scale with zoom
+        offsetRef.current.x = startOffsetX + totalDx / zoomRef.current
+        offsetRef.current.y = startOffsetY + totalDy / zoomRef.current
       } else if (!isTouchRef.current) {
         const newId = doRaycast(e.clientX, e.clientY)
         if (newId !== hoveredIdRef.current) {
@@ -263,6 +343,10 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     }
 
     const onPointerUp = (e: PointerEvent) => {
+      if (multiTouch) {
+        isDragging = false
+        return
+      }
       if (!isDragging) return
       isDragging = false
       canvas.style.cursor = hoveredIdRef.current ? "pointer" : "grab"
@@ -286,18 +370,84 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
       }
     }
 
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      zoomAnchorRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      // Scroll up zooms in — same direction as Experimental mode
+      zoomBy(Math.exp(-e.deltaY * ZOOM_WHEEL_SPEED))
+    }
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length < 2) return
+      multiTouch = true
+      cancelDrag()
+      const [a, b] = [e.touches[0], e.touches[1]]
+      pinchDist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
+      pinchMidX = (a.clientX + b.clientX) / 2
+      pinchMidY = (a.clientY + b.clientY) / 2
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length < 2) return
+      e.preventDefault()
+      multiTouch = true
+
+      const [a, b] = [e.touches[0], e.touches[1]]
+      const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
+      const midX = (a.clientX + b.clientX) / 2
+      const midY = (a.clientY + b.clientY) / 2
+
+      const rect = canvas.getBoundingClientRect()
+      const anchorX = midX - rect.left
+      const anchorY = midY - rect.top
+      zoomAnchorRef.current = { x: anchorX, y: anchorY }
+
+      if (pinchDist > 0) {
+        // Spread/squeeze scales, and the midpoint's travel pans — applied in the
+        // same frame so a pinch zooms and moves the field at once. Zoom goes on
+        // directly rather than through the eased target, so it tracks the fingers.
+        const { min, max } = zoomBoundsRef.current
+        applyZoom(clamp(zoomRef.current * (dist / pinchDist), min, max), anchorX, anchorY)
+        targetZoomRef.current = zoomRef.current
+        offsetRef.current.x += (midX - pinchMidX) / zoomRef.current
+        offsetRef.current.y += (midY - pinchMidY) / zoomRef.current
+      }
+      pinchDist = dist
+      pinchMidX = midX
+      pinchMidY = midY
+    }
+
+    const onTouchEnd = (e: TouchEvent) => {
+      // Stay in multi-touch until every finger is up, so lifting one finger
+      // mid-pinch doesn't hand a stale drag origin back to the pan handler
+      if (e.touches.length > 0) return
+      multiTouch = false
+      pinchDist = 0
+    }
+
+    canvas.addEventListener("wheel", onWheel, { passive: false })
+    canvas.addEventListener("touchstart", onTouchStart, { passive: false })
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false })
+    canvas.addEventListener("touchend", onTouchEnd)
+    canvas.addEventListener("touchcancel", onTouchEnd)
     canvas.addEventListener("pointerdown", onPointerDown)
     canvas.addEventListener("pointermove", onPointerMove)
     canvas.addEventListener("pointerup", onPointerUp)
     canvas.addEventListener("pointerleave", onPointerLeave)
 
     return () => {
+      canvas.removeEventListener("wheel", onWheel)
+      canvas.removeEventListener("touchstart", onTouchStart)
+      canvas.removeEventListener("touchmove", onTouchMove)
+      canvas.removeEventListener("touchend", onTouchEnd)
+      canvas.removeEventListener("touchcancel", onTouchEnd)
       canvas.removeEventListener("pointerdown", onPointerDown)
       canvas.removeEventListener("pointermove", onPointerMove)
       canvas.removeEventListener("pointerup", onPointerUp)
       canvas.removeEventListener("pointerleave", onPointerLeave)
     }
-  }, [gl, doRaycast, images, onImageClick])
+  }, [gl, doRaycast, images, onImageClick, applyZoom])
 
   const readyFired = useRef(false)
   useEffect(() => {
@@ -311,11 +461,18 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
   useFrame(() => {
     if (!groupRef.current) return
 
-    // Inertia
+    // Zoom: ease toward the target, anchored on the cursor / pinch midpoint so
+    // the picture under the pointer stays put instead of sliding away
+    const zPrev = zoomRef.current
+    const zNext = zPrev + (targetZoomRef.current - zPrev) * ZOOM_LERP
+    const anchor = zoomAnchorRef.current
+    applyZoom(zNext, anchor?.x ?? size.width / 2, anchor?.y ?? size.height / 2)
+
+    // Inertia — velocity is in CSS pixels, so it scales with zoom like the drag
     const vel = velocityRef.current
     if (Math.abs(vel.x) > 0.5 || Math.abs(vel.y) > 0.5) {
-      offsetRef.current.x += vel.x
-      offsetRef.current.y += vel.y
+      offsetRef.current.x += vel.x / zoomRef.current
+      offsetRef.current.y += vel.y / zoomRef.current
       velocityRef.current = { x: vel.x * INERTIA_DECAY, y: vel.y * INERTIA_DECAY }
     } else if (vel.x !== 0 || vel.y !== 0) {
       velocityRef.current = { x: 0, y: 0 }
@@ -409,7 +566,23 @@ export default function ExplorativeGallery({ images, onImageClick }: Explorative
 
   const [imagesPreloaded, setImagesPreloaded] = useState(false)
   const [sceneReady, setSceneReady] = useState(false)
+  const [hasZoomed, setHasZoomed] = useState(false)
   const handleSceneReady = useCallback(() => setSceneReady(true), [])
+  const isTouch = useMemo(() => isTouchDevice(), [])
+
+  // Zoom hint retires itself the first time the user zooms
+  useEffect(() => {
+    const onZoomGesture = (e: Event) => {
+      if (e.type === "touchmove" && (e as TouchEvent).touches.length < 2) return
+      setHasZoomed(true)
+    }
+    window.addEventListener("wheel", onZoomGesture)
+    window.addEventListener("touchmove", onZoomGesture)
+    return () => {
+      window.removeEventListener("wheel", onZoomGesture)
+      window.removeEventListener("touchmove", onZoomGesture)
+    }
+  }, [])
 
   useEffect(() => {
     if (images.length === 0) {
@@ -497,6 +670,22 @@ export default function ExplorativeGallery({ images, onImageClick }: Explorative
           </Canvas>
         </div>
       )}
+
+      {/* Zoom hint — mirrors Experimental mode's scroll hint */}
+      <div
+        className="text-foreground pointer-events-none fixed right-0 bottom-[calc(var(--header-height,0px)+var(--gutter))] left-0 z-[9998] flex justify-center text-[10px]"
+        style={{
+          opacity: sceneReady && !hasZoomed ? 1 : 0,
+          transition: "opacity 0.3s ease",
+        }}
+      >
+        <span className="flex items-center gap-1">
+          <kbd className="border-foreground/50 bg-background inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-[3px] border px-1 py-0.5 font-[inherit] text-[10px] leading-none">
+            {isTouch ? "Pinch" : "Scroll"}
+          </kbd>
+          <span className="ml-1.5">Zoom in and out</span>
+        </span>
+      </div>
     </div>
   )
 }
