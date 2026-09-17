@@ -47,6 +47,12 @@ const ZOOM_IN_FLOOR = 1.8
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
+/** Wraps into [-period/2, period/2) instead of [0, period). */
+function wrapSigned(v: number, period: number) {
+  const m = ((v % period) + period) % period
+  return m >= period / 2 ? m - period : m
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -171,7 +177,14 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     const computeBounds = () => {
       const vw = window.innerWidth
       const vh = window.innerHeight
-      const min = Math.min(Math.max(vw / tileW, vh / tileH), 1)
+      // The centred 3x3 block guarantees one tile of margin around the canvas
+      // centre, so the rendered area has to fit inside that. Twisting is touch
+      // only, and a rotated view needs its diagonal rather than its sides.
+      const span = isTouchRef.current
+        ? { x: Math.hypot(size.width, size.height), y: Math.hypot(size.width, size.height) }
+        : { x: size.width, y: size.height }
+      const coverFloor = Math.max(span.x / (2 * tileW), span.y / (2 * tileH))
+      const min = Math.min(Math.max(vw / tileW, vh / tileH, coverFloor), 1)
       const max = Math.max((ZOOM_IN_SCREEN_FRACTION * vw) / avgImageWidth, ZOOM_IN_FLOOR, min)
       zoomBoundsRef.current = { min, max }
       targetZoomRef.current = clamp(targetZoomRef.current, min, max)
@@ -183,7 +196,7 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     computeBounds()
     window.addEventListener("resize", computeBounds)
     return () => window.removeEventListener("resize", computeBounds)
-  }, [camera, tileW, tileH, avgImageWidth])
+  }, [camera, size, tileW, tileH, avgImageWidth])
 
   const materials = useMemo(() => {
     const map = new Map<string, THREE.MeshBasicMaterial>()
@@ -513,11 +526,20 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
       velocityRef.current = { x: 0, y: 0 }
     }
 
-    // Group position: modulo wrapping (Y flipped for Three.js coordinates)
+    // Group position: modulo wrapping (Y flipped for Three.js coordinates).
+    // The 3x3 block reaches from -1 to +2 tiles, so wrapping into [0, tile)
+    // would leave the left and top edges with no slack at all — fine at zoom 1,
+    // where the view starts exactly at world 0, but zooming out widens the view
+    // past that and opens a gap. Wrapping around a centred anchor instead puts a
+    // full tile of margin on every side.
     const { x, y } = offsetRef.current
-    const wx = ((x % tileW) + tileW) % tileW
-    const wy = ((y % tileH) + tileH) % tileH
-    groupRef.current.position.set(wx, -wy, 0)
+    const anchorX = size.width / 2 - tileW / 2
+    const anchorY = -size.height / 2 + tileH / 2
+    groupRef.current.position.set(
+      anchorX + wrapSigned(x - anchorX, tileW),
+      anchorY + wrapSigned(-y - anchorY, tileH),
+      0
+    )
 
     rotationGroupRef.current.rotation.z = rotationRef.current
 
