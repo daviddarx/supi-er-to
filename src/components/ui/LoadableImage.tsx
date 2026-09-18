@@ -7,6 +7,14 @@ import { cn } from "@/lib/utils"
 /** Module-level cache of image srcs that have already loaded — survives remounts. */
 const loadedSrcs = new Set<string>()
 
+/**
+ * How far outside the viewport to start loading, as a share of viewport height.
+ * Expressed relative rather than in pixels so it scales with the screen: in
+ * Classic mode an image is most of a viewport tall, so this is a couple of
+ * images of runway — enough to stay ahead of a quick scroll.
+ */
+const PRELOAD_MARGIN = "200% 0px"
+
 interface LoadableImageProps {
   id: string
   size: ImageSize
@@ -28,7 +36,7 @@ interface LoadableImageProps {
 /**
  * Lazily-loaded image component using IntersectionObserver.
  * Fades in when loaded. Shows a muted placeholder while loading.
- * Loads the image 200px before it enters the viewport for smoother UX.
+ * Starts loading well before the image enters the viewport (see PRELOAD_MARGIN).
  *
  * If intrinsic `width` and `height` are provided, the container holds its
  * aspect-ratio before the image loads, preventing layout shift (CLS).
@@ -65,8 +73,7 @@ export function LoadableImage({
           observer.disconnect()
         }
       },
-      // Start loading 200px before the image enters the viewport
-      { rootMargin: "200px" }
+      { rootMargin: PRELOAD_MARGIN }
     )
 
     observer.observe(el)
@@ -111,7 +118,11 @@ export function LoadableImage({
             isLoaded ? "opacity-100" : "opacity-0"
           )}
           draggable={false}
-          loading={priority ? "eager" : "lazy"}
+          // The observer above is the lazy gate. Native lazy loading on top of
+          // it is a second, blinder gate that can only hold the fetch back
+          // further, so once we've decided to render, fetch now.
+          loading="eager"
+          decoding="async"
           {...(priority ? { fetchPriority: "high" } : {})}
         />
       )}
