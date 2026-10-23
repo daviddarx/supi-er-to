@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import * as THREE from "three"
-import { getImageSrc } from "@/lib/images"
+import { getImageSrc, type ImageSize } from "@/lib/images"
 import type { GalleryImage } from "@/types"
 
 // ---------------------------------------------------------------------------
@@ -44,6 +44,16 @@ const ZOOM_IN_SCREEN_FRACTION = 0.5
 // …except on phones, where pictures already render wider than that at rest, so
 // the ceiling would sit below 1 and forbid zooming in at all.
 const ZOOM_IN_FLOOR = 1.8
+
+// Sharper sources (1280/2400) replace the 500px base for pictures zoomed in
+// on. Only once a picture is drawn this many times past its base size…
+const HI_RES_MIN_STRETCH = 1.5
+// …sits near the middle of the screen (fraction of the half-viewport)…
+const HI_RES_CENTER_RADIUS = 0.6
+// …and only this many at once, to bound decode/upload work and GPU memory
+const HI_RES_MAX_COUNT = 4
+// Frames between checks of which pictures need a sharper source
+const HI_RES_CHECK_INTERVAL = 10
 
 // Announces gesture boundaries to the page, which slides the bottom bar out of
 // the way while the scene is being handled
@@ -247,12 +257,113 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     return map
   }, [layouts])
 
+  // Sharper textures currently swapped in, per image. The 500px base stays in
+  // textureCache; these are released again once a picture shrinks or leaves the
+  // screen, so panning around zoomed in doesn't pile up full-size textures.
+  const hiResRef = useRef(
+    new Map<string, { size: ImageSize; texture: THREE.Texture | null; img: HTMLImageElement }>()
+  )
+  const frameCountRef = useRef(0)
+
+  const releaseHiRes = useCallback(
+    (id: string) => {
+      const entry = hiResRef.current.get(id)
+      if (!entry) return
+      entry.img.onload = entry.img.onerror = null
+      entry.texture?.dispose()
+      hiResRef.current.delete(id)
+      const material = materials.get(id)
+      const base = textureCache.get(id)
+      if (material && base) material.map = base
+    },
+    [materials]
+  )
+
   useEffect(() => {
+    const hiRes = hiResRef.current
     return () => {
+      for (const id of [...hiRes.keys()]) releaseHiRes(id)
       for (const mat of materials.values()) mat.dispose()
       sharedGeo.dispose()
     }
-  }, [materials, sharedGeo])
+  }, [materials, sharedGeo, releaseHiRes])
+
+  const requestHiRes = (id: string, size: ImageSize) => {
+    hiResRef.current.get(id)?.texture?.dispose()
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    img.src = getImageSrc(id, size)
+    hiResRef.current.set(id, { size, texture: null, img })
+    // decode() runs off the main thread, so the swap only costs the GPU upload
+    img
+      .decode()
+      .then(() => {
+        const entry = hiResRef.current.get(id)
+        const material = materials.get(id)
+        if (entry?.img !== img || !material) return
+        const texture = new THREE.Texture(img)
+        texture.colorSpace = THREE.SRGBColorSpace
+        // No mipmaps: a picture is shown at most a little below the source's
+        // size, and trilinear filtering would blend in the half-size level —
+        // blurring it right back down
+        texture.generateMipmaps = false
+        texture.minFilter = THREE.LinearFilter
+        texture.needsUpdate = true
+        entry.texture = texture
+        material.map = texture
+      })
+      .catch(() => {})
+  }
+
+  // Releases sharper sources for pictures that left the screen or shrank back
+  // down, and — only once the view has come to rest — picks the few pictures
+  // nearest the centre that are drawn well past their 500px base
+  const tmpVec = useMemo(() => new THREE.Vector3(), [])
+  const updateHiRes = (settled: boolean) => {
+    const zoom = zoomRef.current
+    const dpr = gl.getPixelRatio()
+    // The canvas is oversized around the viewport (see ExplorativeGallery), so
+    // the visible window is a centred fraction of NDC space
+    const visX = window.innerWidth / size.width
+    const visY = window.innerHeight / size.height
+    // Largest on-screen size (device px) and distance from centre (NDC, scaled
+    // to the viewport) per picture, over its visible tile copies
+    const onScreen = new Map<string, { px: number; dist: number }>()
+    groupRef.current.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh) || !obj.userData.imageId) return
+      const ud = obj.userData
+      const scale = ud._animScale ?? 1
+      const halfDiag = 0.5 * Math.hypot(ud.planeW, ud.planeH) * scale * zoom
+      obj.getWorldPosition(tmpVec).project(camera)
+      const rx = (2 * halfDiag) / size.width
+      const ry = (2 * halfDiag) / size.height
+      if (Math.abs(tmpVec.x) > visX + rx || Math.abs(tmpVec.y) > visY + ry) return
+      const px = ud.planeW * scale * zoom * dpr
+      const dist = Math.hypot(tmpVec.x / visX, tmpVec.y / visY)
+      const prev = onScreen.get(ud.imageId)
+      if (!prev || dist < prev.dist) onScreen.set(ud.imageId, { px, dist })
+    })
+
+    for (const id of [...hiResRef.current.keys()]) {
+      if ((onScreen.get(id)?.px ?? 0) <= 500) releaseHiRes(id)
+    }
+    if (!settled) return
+
+    const candidates = [...onScreen]
+      .filter(([, { px, dist }]) => px > 500 * HI_RES_MIN_STRETCH && dist < HI_RES_CENTER_RADIUS)
+      .sort((a, b) => a[1].dist - b[1].dist)
+      .slice(0, HI_RES_MAX_COUNT)
+    const keep = new Set(candidates.map(([id]) => id))
+    // Make room: drop held sources that are no longer among the central few
+    for (const id of [...hiResRef.current.keys()]) {
+      if (!keep.has(id) && hiResRef.current.size >= HI_RES_MAX_COUNT) releaseHiRes(id)
+    }
+    for (const [id, { px }] of candidates) {
+      const size: ImageSize = px > 1280 ? 2400 : 1280
+      const current = hiResRef.current.get(id)?.size ?? 500
+      if (size > current) requestHiRes(id, size)
+    }
+  }
 
   // Orthographic camera: 1 world unit = 1 CSS pixel, origin = top-left
   useEffect(() => {
@@ -571,6 +682,19 @@ function ExplorativeScene({ images, layouts, tileW, tileH, onImageClick, onReady
     )
 
     rotationGroupRef.current.rotation.z = rotationRef.current
+
+    if (++frameCountRef.current % HI_RES_CHECK_INTERVAL === 0) {
+      rotationGroupRef.current.updateMatrixWorld()
+      // At rest: zoom eased in, no drag, pinch or inertia still moving the view
+      const g = gestureRef.current
+      const settled =
+        Math.abs(targetZoomRef.current - zoomRef.current) < zoomRef.current * 0.01 &&
+        !g.isDragging &&
+        !g.multiTouch &&
+        velocityRef.current.x === 0 &&
+        velocityRef.current.y === 0
+      updateHiRes(settled)
+    }
 
     // Hover animation: rotation toward 0, scale up, z-index forward
     const hovered = hoveredIdRef.current
