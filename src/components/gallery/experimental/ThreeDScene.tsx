@@ -77,19 +77,32 @@ const FOCUS_PADDING = 1.3
 const FOCUS_LERP = 0.04
 
 /**
- * Lerp speed once a swipe is driving the focused camera — twice FOCUS_LERP, so
- * the camera trails the finger with half the lag. The tap-to-focus fly-in keeps
- * the slower FOCUS_LERP.
+ * Lerp speed once a swipe is driving the focused camera — tight, so the camera
+ * sticks to the finger like a carousel. The tap-to-focus fly-in keeps the
+ * slower FOCUS_LERP.
  */
-const FOCUS_SWIPE_LERP = FOCUS_LERP * 2
+const FOCUS_SWIPE_LERP = 0.3
 
 /**
- * Fractional wall indices travelled per pixel of horizontal swipe while focused.
- * A full-width phone swipe covers roughly one image: halved from the corridor's
- * vertical responsiveness on purpose, so a focused picture stays in front of you
- * long enough to look at instead of sliding past.
+ * Walls travelled per screen width of horizontal swipe while focused: dragging
+ * across the full screen brings the neighbouring picture in front of you.
  */
-const FOCUS_SWIPE_SPEED = 0.0025
+const FOCUS_SWIPE_WALLS_PER_SCREEN = 1
+
+/** Easing of the snap to the nearest aligned picture after the finger lifts. */
+const FOCUS_SNAP_LERP = 0.12
+
+/** Release speed (px/ms) above which a swipe flicks to the next/previous picture. */
+const FLICK_VELOCITY = 0.3
+
+/**
+ * Drag (in walls) past which releasing moves on to the next picture in the
+ * swipe's direction — anything smaller is treated as an accidental nudge.
+ */
+const SWIPE_COMMIT_DISTANCE = 0.05
+
+/** Only touch movement this recent (ms) counts toward the release velocity. */
+const FLICK_WINDOW = 100
 
 /** Total touch travel (px) before a gesture counts as a drag instead of a tap. */
 const DRAG_THRESHOLD = 8
@@ -317,6 +330,10 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
    * the same way targetZ drives the camera in corridor mode.
    */
   const focusPos = useRef(0)
+  /** Where focusPos eases to after a swipe — a whole index once the finger lifts. */
+  const focusPosTarget = useRef(0)
+  /** A finger is down on the canvas — focusPos follows it directly. */
+  const touchActive = useRef(false)
   /** Which side the current focus is on — fixed for the duration of a focus. */
   const focusIsLeft = useRef(true)
   /** Corridor loop offset locked when focus began, so blended poses stay continuous. */
@@ -533,6 +550,7 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     focusIsLeft.current = wall.isLeft
     focusLoopOffset.current = getLoopOffset(wall.z, camera.position.z)
     focusPos.current = sideIndices.indexOf(wallIndex)
+    focusPosTarget.current = focusPos.current
     updateFocusPoseFromPosition()
 
     focusedWall.current = wallIndex
@@ -617,6 +635,10 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     let lastTouchY = 0
     let lastTouchX = 0
     let touchTravel = 0
+    /** Row position when the finger went down — the swipe's direction is measured from here. */
+    let swipeStartPos = 0
+    /** Recent horizontal positions, for the release velocity. */
+    let touchSamples: Array<{ x: number; t: number }> = []
 
     const handleTouchStart = (e: TouchEvent) => {
       isTouch.current = true
@@ -624,6 +646,44 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
       lastTouchX = e.touches[0].clientX
       touchTravel = 0
       touchDragged.current = false
+      touchActive.current = true
+      // Catch the picture mid-snap where it is, like grabbing a carousel
+      focusPosTarget.current = focusPos.current
+      swipeStartPos = focusPos.current
+      touchSamples = [{ x: lastTouchX, t: e.timeStamp }]
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length > 0) return
+      touchActive.current = false
+      if (!isFocusing.current || !focusDragActive.current) return
+
+      const sideIndices = focusIsLeft.current ? leftIndices : rightIndices
+      const recent = touchSamples.filter((s) => e.timeStamp - s.t <= FLICK_WINDOW)
+      const first = recent[0]
+      const last = recent[recent.length - 1]
+      const velocity =
+        first && last && last.t > first.t ? (last.x - first.x) / (last.t - first.t) : 0
+
+      // Direction of travel in row space: a flick decides by its release speed
+      // (same mapping as the drag — on a left wall, swiping left goes deeper),
+      // otherwise by where the drag has moved the row since the finger went down
+      let step = 0
+      if (Math.abs(velocity) > FLICK_VELOCITY) {
+        step = Math.sign(velocity) * (focusIsLeft.current ? -1 : 1)
+      } else if (Math.abs(focusPos.current - swipeStartPos) > SWIPE_COMMIT_DISTANCE) {
+        step = Math.sign(focusPos.current - swipeStartPos)
+      }
+      // Land on the next picture in that direction from wherever the row sits,
+      // so even a short swipe advances one, and swiping back after a half-drag
+      // returns to the starting picture
+      const target =
+        step > 0
+          ? Math.floor(focusPos.current) + 1
+          : step < 0
+            ? Math.ceil(focusPos.current) - 1
+            : Math.round(focusPos.current)
+      focusPosTarget.current = Math.max(0, Math.min(sideIndices.length - 1, target))
     }
 
     const handleTouchMove = (e: TouchEvent) => {
@@ -647,9 +707,13 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
         // corridor runs the other way across the screen, so the sign flips.
         const sideIndices = focusIsLeft.current ? leftIndices : rightIndices
         if (sideIndices.length < 2) return
+        touchSamples.push({ x: touchX, t: e.timeStamp })
+        if (touchSamples.length > 20) touchSamples.shift()
         const direction = focusIsLeft.current ? -1 : 1
-        const next = focusPos.current + deltaX * FOCUS_SWIPE_SPEED * direction
+        const perPx = FOCUS_SWIPE_WALLS_PER_SCREEN / window.innerWidth
+        const next = focusPos.current + deltaX * perPx * direction
         focusPos.current = Math.max(0, Math.min(sideIndices.length - 1, next))
+        focusPosTarget.current = focusPos.current
         focusedWall.current = sideIndices[Math.round(focusPos.current)]
         // Tighten the easing for the rest of this focus, so the camera stays
         // close to the finger instead of trailing at fly-in speed
@@ -702,6 +766,8 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
     window.addEventListener("mousemove", handleMouseMove)
     canvas.addEventListener("touchstart", handleTouchStart)
     canvas.addEventListener("touchmove", handleTouchMove, { passive: false })
+    canvas.addEventListener("touchend", handleTouchEnd)
+    canvas.addEventListener("touchcancel", handleTouchEnd)
     canvas.addEventListener("click", handleClick)
     return () => {
       canvas.removeEventListener("wheel", handleWheel)
@@ -709,6 +775,8 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
       window.removeEventListener("mousemove", handleMouseMove)
       canvas.removeEventListener("touchstart", handleTouchStart)
       canvas.removeEventListener("touchmove", handleTouchMove)
+      canvas.removeEventListener("touchend", handleTouchEnd)
+      canvas.removeEventListener("touchcancel", handleTouchEnd)
       canvas.removeEventListener("click", handleClick)
       if (autoDriftTimer.current) clearTimeout(autoDriftTimer.current)
     }
@@ -716,6 +784,17 @@ export function ThreeDScene({ images, isDarkMode, textureSize, onReady }: ThreeD
 
   useFrame(() => {
     if (isFocusing.current) {
+      // After release, ease the row position onto the snapped picture
+      if (!touchActive.current && focusPos.current !== focusPosTarget.current) {
+        const remaining = focusPosTarget.current - focusPos.current
+        focusPos.current =
+          Math.abs(remaining) < 0.001
+            ? focusPosTarget.current
+            : focusPos.current + remaining * FOCUS_SNAP_LERP
+        const sideIndices = focusIsLeft.current ? leftIndices : rightIndices
+        focusedWall.current = sideIndices[Math.round(focusPos.current)]
+      }
+
       // Rebuild the target pose from the swipe-driven position each frame, so a
       // fractional focusPos blends smoothly between neighbouring walls
       updateFocusPoseFromPosition()
