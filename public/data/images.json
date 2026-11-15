@@ -2455,5 +2455,14 @@
     "tag": "supi",
     "width": 2400,
     "height": 1373
+  },
+  {
+    "id": "supi-123",
+    "filename": "supi-123.webp",
+    "date": "2026-11-07",
+    "sortOrder": 1,
+    "tag": "supi",
+    "width": 2400,
+    "height": 1442
   }
 ]
